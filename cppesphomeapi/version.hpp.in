@@ -1,0 +1,13 @@
+#ifndef CPPESPHOMEAPI_VERSION_HPP
+#define CPPESPHOMEAPI_VERSION_HPP
+#include <string_view>
+namespace cppesphomeapi
+{
+inline constexpr unsigned int kVersionMajor = @PROJECT_VERSION_MAJOR@;
+inline constexpr unsigned int kVersionMinor = @PROJECT_VERSION_MINOR@;
+inline constexpr unsigned int kVersionPatch = @PROJECT_VERSION_PATCH@;
+inline constexpr std::string_view kVersion = "@PROJECT_VERSION@";
+inline constexpr std::string_view kGitRef = "@git_sha@";
+inline constexpr std::string_view kGitBranch = "@git_branch@";
+} // namespace cppesphomeapi
+#endif
