@@ -13,3 +13,9 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 include(CTest)
 include(FetchContent)
+include(dependencies)
+
+declare_dependencies()
+
+find_package(asio-grpc CONFIG REQUIRED)
+find_package(stdexec CONFIG REQUIRED)

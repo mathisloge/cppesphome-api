@@ -23,8 +23,7 @@
             "description": "The developer configuration",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "BUILD_TESTING": true,
-                "QT_QML_DEBUG": true
+                "BUILD_TESTING": true
             }
         },
         {
