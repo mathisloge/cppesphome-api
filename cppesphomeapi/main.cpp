@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <expected>
 #include <print>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
@@ -21,7 +22,29 @@ using tcp_acceptor = use_awaitable_t<>::as_default_on_t<tcp::acceptor>;
 using tcp_socket = use_awaitable_t<>::as_default_on_t<tcp::socket>;
 namespace this_coro = asio::this_coro;
 
-uint8_t varuint_to_bytes(std::uint32_t value, std::span<std::uint8_t> data)
+enum ApiErrorCode
+{
+    ParseError,
+    UnexpectedMessage
+};
+
+struct ApiError
+{
+    ApiErrorCode code;
+    std::string message;
+};
+
+template <typename T>
+using Result = std::expected<T, ApiError>;
+
+namespace
+{
+auto make_unexpected_result(ApiErrorCode code, std::string message)
+{
+    return std::unexpected(ApiError{.code = code, .message = std::move(message)});
+};
+
+uint8_t write_varuint(std::uint32_t value, std::span<std::uint8_t> data)
 {
     if (value <= 0x7F)
     {
@@ -79,9 +102,8 @@ awaitable<std::uint32_t> write_message(const ::google::protobuf::Message &messag
     std::array<std::uint8_t, 256> buffer{};
     std::uint32_t current_write_index{0};
     buffer.at(current_write_index++) = 0;
-    current_write_index += varuint_to_bytes(msg_size, {&buffer.at(current_write_index), buffer.end()});
-    current_write_index +=
-        varuint_to_bytes(msg_options.GetExtension(id), {&buffer.at(current_write_index), buffer.end()});
+    current_write_index += write_varuint(msg_size, {&buffer.at(current_write_index), buffer.end()});
+    current_write_index += write_varuint(msg_options.GetExtension(id), {&buffer.at(current_write_index), buffer.end()});
     const auto header_len = current_write_index;
     message.SerializeToArray(&buffer.at(current_write_index), buffer.size() - current_write_index);
 
@@ -91,44 +113,45 @@ awaitable<std::uint32_t> write_message(const ::google::protobuf::Message &messag
     co_return written;
 }
 
-awaitable<void> receive_response(tcp::socket &socket, auto &received_message)
+template <typename TMsg>
+awaitable<Result<TMsg>> receive_response(tcp::socket &socket)
 {
     std::array<std::uint8_t, 512> buffer{};
     const auto received_bytes = co_await socket.async_receive(asio::buffer(buffer));
     std::println("received {} bytes", received_bytes);
     if (received_bytes < 3)
     {
-        std::println("response does not contain enough bytes for the header");
-        co_return;
+        co_return make_unexpected_result(ApiErrorCode::ParseError,
+                                         "response does not contain enough bytes for the header");
     }
 
     auto *it = buffer.begin();
     const auto preamble = read_varuint(it, buffer.end());
     if (not preamble.has_value() or *preamble != 0x00)
     {
-        std::println("response does contain an invalid preamble");
-        co_return;
+        co_return make_unexpected_result(ApiErrorCode::ParseError, "response does contain an invalid preamble");
     }
     const auto message_size = read_varuint(it, buffer.end());
     if (not message_size.has_value())
     {
-        std::println("got no message size");
-        co_return;
+        co_return make_unexpected_result(ApiErrorCode::ParseError, "got no message size");
     }
     const auto message_type = read_varuint(it, buffer.end());
     if (not message_type.has_value())
     {
-        std::println("got no message type");
-        co_return;
+        co_return make_unexpected_result(ApiErrorCode::ParseError, "got no message type");
     }
     const auto expected_message_id = HelloResponse::GetDescriptor()->options().GetExtension(id);
     if (expected_message_id != message_type.value())
     {
-        std::println("Expected {} but got message id {}", HelloResponse::GetDescriptor()->name(), message_type.value());
-        co_return;
+        co_return make_unexpected_result(ApiErrorCode::UnexpectedMessage,
+                                         std::format("Expected {} but got message id {}",
+                                                     HelloResponse::GetDescriptor()->name(),
+                                                     message_type.value()));
     }
+    TMsg received_message;
     received_message.ParseFromArray(it, message_size.value());
-    std::println("received message: {}, {}", message_size.value(), message_type.value());
+    co_return received_message;
 }
 
 awaitable<void> send_message_hello(tcp::socket &socket)
@@ -137,13 +160,12 @@ awaitable<void> send_message_hello(tcp::socket &socket)
     HelloRequest hello_request;
     hello_request.set_client_info(std::string{"cppapi"});
     co_await write_message(hello_request, socket);
-    HelloResponse response;
-    co_await receive_response<HelloResponse>(socket, response);
+    const auto msg_promise = co_await receive_response<HelloResponse>(socket);
 
     std::println("Got esphome device \"{}\": Version {}.{}",
-                 response.name(),
-                 response.api_version_major(),
-                 response.api_version_minor());
+                 msg_promise->name(),
+                 msg_promise->api_version_major(),
+                 msg_promise->api_version_minor());
 }
 
 awaitable<void> client()
@@ -161,8 +183,11 @@ awaitable<void> client()
     socket.set_option(asio::socket_base::keep_alive{true});
     std::println("connected");
     co_await send_message_hello(socket);
+
+
 }
 
+} // namespace
 int main()
 {
     try

@@ -1,5 +1,5 @@
-add_executable(cppesphome main.cpp)
-target_link_libraries(cppesphome PUBLIC 
+add_executable(cppesphomeapi main.cpp)
+target_link_libraries(cppesphomeapi PUBLIC 
     Threads::Threads
     protobuf::libprotobuf
     Boost::headers
@@ -8,7 +8,7 @@ target_link_libraries(cppesphome PUBLIC
 # workaround for link errors...  https://github.com/grpc/grpc/issues/34046 
 if (Protobuf_VERSION VERSION_GREATER_EQUAL 4)
     find_package(absl REQUIRED)
-    target_link_libraries (cppesphome
+    target_link_libraries (cppesphomeapi
         PUBLIC
             absl::log_internal_check_op
     )
@@ -20,5 +20,5 @@ protobuf_generate_cpp(
     "${proto_inc_dir}/api.proto"
     "${proto_inc_dir}/api_options.proto"
 )
-target_sources(cppesphome PRIVATE ${PROTO_SRCS} ${PROTO_HDRS})
-target_include_directories(cppesphome PRIVATE  "${CMAKE_CURRENT_BINARY_DIR}")
+target_sources(cppesphomeapi PRIVATE ${PROTO_SRCS} ${PROTO_HDRS})
+target_include_directories(cppesphomeapi PRIVATE  "${CMAKE_CURRENT_BINARY_DIR}")

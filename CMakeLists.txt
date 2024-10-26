@@ -24,4 +24,4 @@ find_package(stdexec CONFIG REQUIRED)
 # only for asio. TODO: make using standalone asio possible
 find_package(Boost CONFIG REQUIRED)
 
-add_subdirectory(cppesphome)
+add_subdirectory(cppesphomeapi)
