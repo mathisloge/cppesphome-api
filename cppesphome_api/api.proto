@@ -3,71 +3,83 @@ syntax = "proto3";
 import "api_options.proto";
 
 service APIConnection {
-  rpc hello (HelloRequest) returns (HelloResponse) {
+  rpc hello(HelloRequest) returns (HelloResponse) {
     option (needs_setup_connection) = false;
     option (needs_authentication) = false;
   }
-  rpc connect (ConnectRequest) returns (ConnectResponse) {
+  rpc connect(ConnectRequest) returns (ConnectResponse) {
     option (needs_setup_connection) = false;
     option (needs_authentication) = false;
   }
-  rpc disconnect (DisconnectRequest) returns (DisconnectResponse) {
+  rpc disconnect(DisconnectRequest) returns (DisconnectResponse) {
     option (needs_setup_connection) = false;
     option (needs_authentication) = false;
   }
-  rpc ping (PingRequest) returns (PingResponse) {
+  rpc ping(PingRequest) returns (PingResponse) {
     option (needs_setup_connection) = false;
     option (needs_authentication) = false;
   }
-  rpc device_info (DeviceInfoRequest) returns (DeviceInfoResponse) {
+  rpc device_info(DeviceInfoRequest) returns (DeviceInfoResponse) {
     option (needs_authentication) = false;
   }
-  rpc list_entities (ListEntitiesRequest) returns (void) {}
-  rpc subscribe_states (SubscribeStatesRequest) returns (void) {}
-  rpc subscribe_logs (SubscribeLogsRequest) returns (void) {}
-  rpc subscribe_homeassistant_services (SubscribeHomeassistantServicesRequest) returns (void) {}
-  rpc subscribe_home_assistant_states (SubscribeHomeAssistantStatesRequest) returns (void) {}
-  rpc get_time (GetTimeRequest) returns (GetTimeResponse) {
+  rpc list_entities(ListEntitiesRequest) returns (void) {}
+  rpc subscribe_states(SubscribeStatesRequest) returns (void) {}
+  rpc subscribe_logs(SubscribeLogsRequest) returns (void) {}
+  rpc subscribe_homeassistant_services(SubscribeHomeassistantServicesRequest)
+      returns (void) {}
+  rpc subscribe_home_assistant_states(SubscribeHomeAssistantStatesRequest)
+      returns (void) {}
+  rpc get_time(GetTimeRequest) returns (GetTimeResponse) {
     option (needs_authentication) = false;
   }
-  rpc execute_service (ExecuteServiceRequest) returns (void) {}
+  rpc execute_service(ExecuteServiceRequest) returns (void) {}
 
-  rpc cover_command (CoverCommandRequest) returns (void) {}
-  rpc fan_command (FanCommandRequest) returns (void) {}
-  rpc light_command (LightCommandRequest) returns (void) {}
-  rpc switch_command (SwitchCommandRequest) returns (void) {}
-  rpc camera_image (CameraImageRequest) returns (void) {}
-  rpc climate_command (ClimateCommandRequest) returns (void) {}
-  rpc number_command (NumberCommandRequest) returns (void) {}
-  rpc text_command (TextCommandRequest) returns (void) {}
-  rpc select_command (SelectCommandRequest) returns (void) {}
-  rpc button_command (ButtonCommandRequest) returns (void) {}
-  rpc lock_command (LockCommandRequest) returns (void) {}
-  rpc valve_command (ValveCommandRequest) returns (void) {}
-  rpc media_player_command (MediaPlayerCommandRequest) returns (void) {}
-  rpc date_command (DateCommandRequest) returns (void) {}
-  rpc time_command (TimeCommandRequest) returns (void) {}
-  rpc datetime_command (DateTimeCommandRequest) returns (void) {}
-  rpc update_command (UpdateCommandRequest) returns (void) {}
+  rpc cover_command(CoverCommandRequest) returns (void) {}
+  rpc fan_command(FanCommandRequest) returns (void) {}
+  rpc light_command(LightCommandRequest) returns (void) {}
+  rpc switch_command(SwitchCommandRequest) returns (void) {}
+  rpc camera_image(CameraImageRequest) returns (void) {}
+  rpc climate_command(ClimateCommandRequest) returns (void) {}
+  rpc number_command(NumberCommandRequest) returns (void) {}
+  rpc text_command(TextCommandRequest) returns (void) {}
+  rpc select_command(SelectCommandRequest) returns (void) {}
+  rpc button_command(ButtonCommandRequest) returns (void) {}
+  rpc lock_command(LockCommandRequest) returns (void) {}
+  rpc valve_command(ValveCommandRequest) returns (void) {}
+  rpc media_player_command(MediaPlayerCommandRequest) returns (void) {}
+  rpc date_command(DateCommandRequest) returns (void) {}
+  rpc time_command(TimeCommandRequest) returns (void) {}
+  rpc datetime_command(DateTimeCommandRequest) returns (void) {}
+  rpc update_command(UpdateCommandRequest) returns (void) {}
 
-  rpc subscribe_bluetooth_le_advertisements(SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
+  rpc subscribe_bluetooth_le_advertisements(
+      SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
   rpc bluetooth_device_request(BluetoothDeviceRequest) returns (void) {}
-  rpc bluetooth_gatt_get_services(BluetoothGATTGetServicesRequest) returns (void) {}
+  rpc bluetooth_gatt_get_services(BluetoothGATTGetServicesRequest)
+      returns (void) {}
   rpc bluetooth_gatt_read(BluetoothGATTReadRequest) returns (void) {}
   rpc bluetooth_gatt_write(BluetoothGATTWriteRequest) returns (void) {}
-  rpc bluetooth_gatt_read_descriptor(BluetoothGATTReadDescriptorRequest) returns (void) {}
-  rpc bluetooth_gatt_write_descriptor(BluetoothGATTWriteDescriptorRequest) returns (void) {}
+  rpc bluetooth_gatt_read_descriptor(BluetoothGATTReadDescriptorRequest)
+      returns (void) {}
+  rpc bluetooth_gatt_write_descriptor(BluetoothGATTWriteDescriptorRequest)
+      returns (void) {}
   rpc bluetooth_gatt_notify(BluetoothGATTNotifyRequest) returns (void) {}
-  rpc subscribe_bluetooth_connections_free(SubscribeBluetoothConnectionsFreeRequest) returns (BluetoothConnectionsFreeResponse) {}
-  rpc unsubscribe_bluetooth_le_advertisements(UnsubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
+  rpc subscribe_bluetooth_connections_free(
+      SubscribeBluetoothConnectionsFreeRequest)
+      returns (BluetoothConnectionsFreeResponse) {}
+  rpc unsubscribe_bluetooth_le_advertisements(
+      UnsubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
 
-  rpc subscribe_voice_assistant(SubscribeVoiceAssistantRequest) returns (void) {}
-  rpc voice_assistant_get_configuration(VoiceAssistantConfigurationRequest) returns (VoiceAssistantConfigurationResponse) {}
-  rpc voice_assistant_set_configuration(VoiceAssistantSetConfiguration) returns (void) {}
+  rpc subscribe_voice_assistant(SubscribeVoiceAssistantRequest) returns (void) {
+  }
+  rpc voice_assistant_get_configuration(VoiceAssistantConfigurationRequest)
+      returns (VoiceAssistantConfigurationResponse) {}
+  rpc voice_assistant_set_configuration(VoiceAssistantSetConfiguration)
+      returns (void) {}
 
-  rpc alarm_control_panel_command (AlarmControlPanelCommandRequest) returns (void) {}
+  rpc alarm_control_panel_command(AlarmControlPanelCommandRequest)
+      returns (void) {}
 }
-
 
 // ==================== BASE PACKETS ====================
 
@@ -80,13 +92,17 @@ service APIConnection {
 //  * The message object encoded as a ProtoBuf message
 
 // The connection is established in 4 steps:
-//  * First, the client connects to the server and sends a "Hello Request" identifying itself
-//  * The server responds with a "Hello Response" and selects the protocol version
-//  * After receiving this message, the client attempts to authenticate itself using
+//  * First, the client connects to the server and sends a "Hello Request"
+//  identifying itself
+//  * The server responds with a "Hello Response" and selects the protocol
+//  version
+//  * After receiving this message, the client attempts to authenticate itself
+//  using
 //    the password and a "Connect Request"
-//  * The server responds with a "Connect Response" and notifies of invalid password.
-// If anything in this initial process fails, the connection must immediately closed
-// by both sides and _no_ disconnection message is to be sent.
+//  * The server responds with a "Connect Response" and notifies of invalid
+//  password.
+// If anything in this initial process fails, the connection must immediately
+// closed by both sides and _no_ disconnection message is to be sent.
 
 // Message sent at the beginning of each connection
 // Can only be sent by the client and only at the beginning of the connection
@@ -111,10 +127,11 @@ message HelloResponse {
   option (source) = SOURCE_SERVER;
   option (no_delay) = true;
 
-  // The version of the API to use. The _client_ (for example Home Assistant) needs to check
-  // for compatibility and if necessary adopt to an older API.
-  // Major is for breaking changes in the base protocol - a mismatch will lead to immediate disconnect_client_
-  // Minor is for breaking changes in individual messages - a mismatch will lead to a warning message
+  // The version of the API to use. The _client_ (for example Home Assistant)
+  // needs to check for compatibility and if necessary adopt to an older API.
+  // Major is for breaking changes in the base protocol - a mismatch will lead
+  // to immediate disconnect_client_ Minor is for breaking changes in individual
+  // messages - a mismatch will lead to a warning message
   uint32 api_version_major = 1;
   uint32 api_version_minor = 2;
 
@@ -138,8 +155,9 @@ message ConnectRequest {
   string password = 1;
 }
 
-// Confirmation of successful connection. After this the connection is available for all traffic.
-// Can only be sent by the server and only at the beginning of the connection
+// Confirmation of successful connection. After this the connection is available
+// for all traffic. Can only be sent by the server and only at the beginning of
+// the connection
 message ConnectResponse {
   option (id) = 4;
   option (source) = SOURCE_SERVER;
@@ -200,9 +218,9 @@ message DeviceInfoResponse {
   // A string describing the ESPHome version. For example "1.10.0"
   string esphome_version = 4;
 
-  // A string describing the date of compilation, this is generated by the compiler
-  // and therefore may not be in the same format all the time.
-  // If the user isn't using ESPHome, this will also not be set.
+  // A string describing the date of compilation, this is generated by the
+  // compiler and therefore may not be in the same format all the time. If the
+  // user isn't using ESPHome, this will also not be set.
   string compilation_time = 5;
 
   // The model of the board. For example NodeMCU
@@ -280,7 +298,8 @@ message BinarySensorStateResponse {
   fixed32 key = 1;
   bool state = 2;
   // If the binary sensor does not have a valid state yet.
-  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets
+  // smaller
   bool missing_state = 3;
 }
 
@@ -443,11 +462,12 @@ message ListEntitiesLightResponse {
   string unique_id = 4;
 
   repeated ColorMode supported_color_modes = 12;
-  // next four supports_* are for legacy clients, newer clients should use color modes
-  bool legacy_supports_brightness = 5 [deprecated=true];
-  bool legacy_supports_rgb = 6 [deprecated=true];
-  bool legacy_supports_white_value = 7 [deprecated=true];
-  bool legacy_supports_color_temperature = 8 [deprecated=true];
+  // next four supports_* are for legacy clients, newer clients should use color
+  // modes
+  bool legacy_supports_brightness = 5 [deprecated = true];
+  bool legacy_supports_rgb = 6 [deprecated = true];
+  bool legacy_supports_white_value = 7 [deprecated = true];
+  bool legacy_supports_color_temperature = 8 [deprecated = true];
   float min_mireds = 9;
   float max_mireds = 10;
   repeated string effects = 11;
@@ -554,7 +574,8 @@ message SensorStateResponse {
   fixed32 key = 1;
   float state = 2;
   // If the sensor does not have a valid state yet.
-  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets
+  // smaller
   bool missing_state = 3;
 }
 
@@ -619,7 +640,8 @@ message TextSensorStateResponse {
   fixed32 key = 1;
   string state = 2;
   // If the text sensor does not have a valid state yet.
-  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets
+  // smaller
   bool missing_state = 3;
 }
 
@@ -676,7 +698,8 @@ message HomeassistantServiceResponse {
 
 // ==================== IMPORT HOME ASSISTANT STATES ====================
 // 1. Client sends SubscribeHomeAssistantStatesRequest
-// 2. Server responds with zero or more SubscribeHomeAssistantStateResponse (async)
+// 2. Server responds with zero or more SubscribeHomeAssistantStateResponse
+// (async)
 // 3. Client sends HomeAssistantStateResponse for state changes.
 message SubscribeHomeAssistantStatesRequest {
   option (id) = 38;
@@ -745,9 +768,9 @@ message ExecuteServiceArgument {
   string string_ = 4;
   // ESPHome 1.14 (api v1.3) make int a signed value
   sint32 int_ = 5;
-  repeated bool bool_array = 6 [packed=false];
-  repeated sint32 int_array = 7 [packed=false];
-  repeated float float_array = 8 [packed=false];
+  repeated bool bool_array = 6 [packed = false];
+  repeated sint32 int_array = 7 [packed = false];
+  repeated float float_array = 8 [packed = false];
   repeated string string_array = 9;
 }
 message ExecuteServiceRequest {
@@ -962,7 +985,8 @@ message NumberStateResponse {
   fixed32 key = 1;
   float state = 2;
   // If the number does not have a valid state yet.
-  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets
+  // smaller
   bool missing_state = 3;
 }
 message NumberCommandRequest {
@@ -1000,7 +1024,8 @@ message SelectStateResponse {
   fixed32 key = 1;
   string state = 2;
   // If the select does not have a valid state yet.
-  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets
+  // smaller
   bool missing_state = 3;
 }
 message SelectCommandRequest {
@@ -1013,7 +1038,6 @@ message SelectCommandRequest {
   string state = 2;
 }
 
-
 // ==================== LOCK ====================
 enum LockState {
   LOCK_STATE_NONE = 0;
@@ -1023,7 +1047,7 @@ enum LockState {
   LOCK_STATE_LOCKING = 4;
   LOCK_STATE_UNLOCKING = 5;
 }
-enum LockCommand  {
+enum LockCommand {
   LOCK_UNLOCK = 0;
   LOCK_LOCK = 1;
   LOCK_OPEN = 2;
@@ -1183,7 +1207,7 @@ message SubscribeBluetoothLEAdvertisementsRequest {
 message BluetoothServiceData {
   string uuid = 1;
   repeated uint32 legacy_data = 2 [deprecated = true];
-  bytes data = 3; // Changed in proto version 1.7
+  bytes data = 3;  // Changed in proto version 1.7
 }
 message BluetoothLEAdvertisementResponse {
   option (id) = 67;
@@ -1312,7 +1336,6 @@ message BluetoothGATTReadResponse {
   uint32 handle = 2;
 
   bytes data = 3;
-
 }
 
 message BluetoothGATTWriteRequest {
@@ -1695,7 +1718,8 @@ message TextStateResponse {
   fixed32 key = 1;
   string state = 2;
   // If the Text does not have a valid state yet.
-  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets
+  // smaller
   bool missing_state = 3;
 }
 message TextCommandRequest {
@@ -1707,7 +1731,6 @@ message TextCommandRequest {
   fixed32 key = 1;
   string state = 2;
 }
-
 
 // ==================== DATETIME DATE ====================
 message ListEntitiesDateResponse {
@@ -1732,7 +1755,8 @@ message DateStateResponse {
 
   fixed32 key = 1;
   // If the date does not have a valid state yet.
-  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets
+  // smaller
   bool missing_state = 2;
   uint32 year = 3;
   uint32 month = 4;
@@ -1773,7 +1797,8 @@ message TimeStateResponse {
 
   fixed32 key = 1;
   // If the time does not have a valid state yet.
-  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets
+  // smaller
   bool missing_state = 2;
   uint32 hour = 3;
   uint32 minute = 4;
@@ -1890,7 +1915,8 @@ message DateTimeStateResponse {
 
   fixed32 key = 1;
   // If the datetime does not have a valid state yet.
-  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets
+  // smaller
   bool missing_state = 2;
   fixed32 epoch_seconds = 3;
 }
