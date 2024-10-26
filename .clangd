@@ -1,3 +1,3 @@
 CompileFlags:
-  Remove: [-mno-direct-extern-access]
+  Remove: [-mno-direct-extern-access, -fconcepts-diagnostics-depth=10]
   Compiler: clang++

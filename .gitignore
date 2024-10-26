@@ -8,3 +8,5 @@ flatpak-build
 .flatpak-builder
 flatpak-repo/
 compile_commands.json
+
+esphome-example.yaml

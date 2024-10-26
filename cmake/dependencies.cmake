@@ -1,4 +1,7 @@
 macro(declare_dependencies)
+    set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+    set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+
     set(project_build_testing ${BUILD_TESTING})
     set(BUILD_TESTING OFF)
     set(STDEXEC_BUILD_EXAMPLES OFF)
@@ -8,13 +11,7 @@ macro(declare_dependencies)
         GIT_TAG        c4b905342c8335dca5f49617997b0997908a8111
         FIND_PACKAGE_ARGS
     )
-    FetchContent_Declare(
-        asio-grpc
-        GIT_REPOSITORY https://github.com/Tradias/asio-grpc.git
-        GIT_TAG        v3.2.1
-        FIND_PACKAGE_ARGS
-    )
-    FetchContent_MakeAvailable(stdexec asio-grpc)
+    FetchContent_MakeAvailable(stdexec)
 
     set(BUILD_TESTING ${project_build_testing})
     if(BUILD_TESTING)
@@ -27,4 +24,6 @@ macro(declare_dependencies)
         )
         FetchContent_MakeAvailable(Catch2 )
     endif()
+
+
 endmacro()

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.28)
+cmake_minimum_required(VERSION 3.30)
 project(cppesphome-api VERSION 0.0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
@@ -18,9 +18,10 @@ include(dependencies)
 declare_dependencies()
 
 find_package(Threads REQUIRED)
-find_package(protobuf REQUIRED)
-find_package(gRPC REQUIRED)
+find_package(Protobuf REQUIRED)
 find_package(stdexec CONFIG REQUIRED)
-find_package(asio-grpc CONFIG REQUIRED)
 
-add_subdirectory(cppesphome_api)
+# only for asio. TODO: make using standalone asio possible
+find_package(Boost CONFIG REQUIRED)
+
+add_subdirectory(cppesphome)
