@@ -6,13 +6,17 @@ target_include_directories(cppesphomeapi
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 )
 
+set(public_inc_dir include/cppesphomeapi)
 target_sources(cppesphomeapi
     PUBLIC
         FILE_SET headers
             TYPE HEADERS
             BASE_DIRS include
             FILES
-                include/cppesphomeapi/api_client.hpp
+                ${public_inc_dir}/api_client.hpp
+                ${public_inc_dir}/async_result.hpp
+                ${public_inc_dir}/result.hpp
+                ${public_inc_dir}/detail/awaitable.hpp
         FILE_SET generated_headers
             TYPE HEADERS
             BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}
