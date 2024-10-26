@@ -7,7 +7,7 @@ enum APISourceType {
   SOURCE_CLIENT = 2;
 }
 
-message void {}
+message Void {}
 
 extend google.protobuf.MethodOptions {
   optional bool needs_setup_connection = 1038 [default = true];
@@ -18,6 +18,6 @@ extend google.protobuf.MessageOptions {
   optional uint32 id = 1036 [default = 0];
   optional APISourceType source = 1037 [default = SOURCE_BOTH];
   optional string ifdef = 1038;
-  optional bool log = 1039 [default = true];
+  optional bool logesp = 1039 [default = true];
   optional bool no_delay = 1040 [default = false];
 }

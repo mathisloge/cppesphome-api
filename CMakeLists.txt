@@ -17,5 +17,10 @@ include(dependencies)
 
 declare_dependencies()
 
-find_package(asio-grpc CONFIG REQUIRED)
+find_package(Threads REQUIRED)
+find_package(protobuf REQUIRED)
+find_package(gRPC REQUIRED)
 find_package(stdexec CONFIG REQUIRED)
+find_package(asio-grpc CONFIG REQUIRED)
+
+add_subdirectory(cppesphome_api)
