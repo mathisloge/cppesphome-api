@@ -1,10 +1,20 @@
 #include "api_connection.hpp"
-#include <print>
 #include "api.pb.h"
 #include "make_unexpected_result.hpp"
 
+#include <print>
+
 namespace asio = boost::asio;
 namespace this_coro = asio::this_coro;
+
+#define REQUIRE_SUCCESS(async_operation)                                                                               \
+    {                                                                                                                  \
+        auto &&result = async_operation;                                                                               \
+        if (not result.has_value())                                                                                    \
+        {                                                                                                              \
+            co_return std::unexpected(result.error());                                                                 \
+        }                                                                                                              \
+    }
 
 namespace cppesphomeapi
 {
@@ -28,26 +38,114 @@ AsyncResult<void> ApiConnection::connect()
     co_await socket_.async_connect(resolved->endpoint());
     socket_.set_option(asio::socket_base::keep_alive{true});
 
-    auto send_result = co_await send_message_hello();
+    REQUIRE_SUCCESS(co_await send_message_hello());
+    REQUIRE_SUCCESS(co_await send_message_connect());
 
-    co_return send_result;
+    co_return Result<void>{};
+}
+
+AsyncResult<void> ApiConnection::disconnect()
+{
+    proto::DisconnectRequest request;
+    REQUIRE_SUCCESS(co_await send_message(request));
+    REQUIRE_SUCCESS(co_await receive_message<proto::DisconnectResponse>());
+    co_return Result<void>{};
 }
 
 AsyncResult<void> ApiConnection::send_message_hello()
 {
-    cppesphomeapi::proto::HelloRequest hello_request;
-
-    hello_request.ParseFromArray(nullptr, 0);
-    hello_request.set_client_info(std::string{"cppapi"});
-    co_await send_message(hello_request);
-    const auto msg_promise = co_await receive_message<cppesphomeapi::proto::HelloResponse>();
-
-    std::println("Got esphome device \"{}\": Version {}.{}",
-                 msg_promise->name(),
-                 msg_promise->api_version_major(),
-                 msg_promise->api_version_minor());
-    // todo: do something with the message.
+    proto::HelloRequest request;
+    request.set_client_info(std::string{"cppapi"});
+    REQUIRE_SUCCESS(co_await send_message(request));
+    const auto response = co_await receive_message<proto::HelloResponse>();
+    REQUIRE_SUCCESS(response);
+    device_name_ = response->name();
+    api_version_ = ApiVersion{.major = response->api_version_major(), .minor = response->api_version_minor()};
     co_return Result<void>{};
+}
+
+AsyncResult<void> ApiConnection::send_message_connect()
+{
+    proto::ConnectRequest request;
+    request.set_password(password_);
+    REQUIRE_SUCCESS(co_await send_message(request));
+    const auto response = co_await receive_message<proto::ConnectResponse>();
+    if (response->invalid_password())
+    {
+        co_return make_unexpected_result(ApiErrorCode::AuthentificationError, "Invalid password");
+    }
+    co_return Result<void>{};
+}
+
+AsyncResult<DeviceInfo> ApiConnection::request_device_info()
+{
+    proto::DeviceInfoRequest device_request{};
+    REQUIRE_SUCCESS(co_await send_message(device_request));
+    const auto response = co_await receive_message<proto::DeviceInfoResponse>();
+    REQUIRE_SUCCESS(response);
+
+    co_return DeviceInfo{
+        .uses_password = response->uses_password(),
+        .has_deep_sleep = response->has_deep_sleep(),
+        .name = response->name(),
+        .friendly_name = response->friendly_name(),
+        .mac_address = response->mac_address(),
+        .compilation_time = response->compilation_time(), // todo: maybe parse directly into std::chrono?
+        .model = response->model(),
+        .manufacturer = response->manufacturer(),
+        .esphome_version = response->esphome_version(),
+        .webserver_port = static_cast<uint16_t>(response->webserver_port()),
+        .suggested_area = response->suggested_area(),
+    };
+}
+
+AsyncResult<std::vector<EntityInfo>> ApiConnection::request_entities_and_services()
+{
+    proto::ListEntitiesRequest request;
+    REQUIRE_SUCCESS(co_await send_message(request));
+    const auto messages = co_await receive_messages<proto::ListEntitiesDoneResponse,
+                                                    proto::ListEntitiesAlarmControlPanelResponse,
+                                                    proto::ListEntitiesBinarySensorResponse,
+                                                    proto::ListEntitiesButtonResponse,
+                                                    proto::ListEntitiesCameraResponse,
+                                                    proto::ListEntitiesClimateResponse,
+                                                    proto::ListEntitiesCoverResponse,
+                                                    proto::ListEntitiesDateResponse,
+                                                    proto::ListEntitiesDateTimeResponse,
+                                                    proto::ListEntitiesEventResponse,
+                                                    proto::ListEntitiesFanResponse,
+                                                    proto::ListEntitiesLightResponse,
+                                                    proto::ListEntitiesLockResponse,
+                                                    proto::ListEntitiesMediaPlayerResponse,
+                                                    proto::ListEntitiesNumberResponse,
+                                                    proto::ListEntitiesSelectResponse,
+                                                    proto::ListEntitiesSensorResponse,
+                                                    proto::ListEntitiesServicesResponse,
+                                                    proto::ListEntitiesSwitchResponse,
+                                                    proto::ListEntitiesTextResponse,
+                                                    proto::ListEntitiesTextSensorResponse,
+                                                    proto::ListEntitiesTimeResponse,
+                                                    proto::ListEntitiesUpdateResponse,
+                                                    proto::ListEntitiesValveResponse>();
+    REQUIRE_SUCCESS(messages);
+
+    for (auto &&msg : messages.value())
+    {
+        std::println("GOT LIST .{}", std::visit([](auto &&msg) { return msg.key(); }, msg));
+    }
+    co_return std::vector<EntityInfo>{};
+}
+
+AsyncResult<void> ApiConnection::light_command(LightCommand light_command)
+{
+    proto::LightCommandRequest request{};
+    request.set_key(light_command.key);
+
+    if (light_command.effect.has_value())
+    {
+        request.set_effect(std::move(light_command.effect.value()));
+    }
+    co_return co_await send_message(request);
 }
 
 AsyncResult<void> ApiConnection::send_message(const google::protobuf::Message &message)
@@ -67,5 +165,15 @@ AsyncResult<void> ApiConnection::send_message(const google::protobuf::Message &m
         co_return Result<void>{};
     }
     co_return std::unexpected(packet.error());
+}
+
+const std::optional<ApiVersion> &ApiConnection::api_version() const
+{
+    return api_version_;
+}
+
+const std::string &ApiConnection::device_name() const
+{
+    return device_name_;
 }
 } // namespace cppesphomeapi

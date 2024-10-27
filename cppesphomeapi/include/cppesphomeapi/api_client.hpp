@@ -4,7 +4,11 @@
 #include <memory>
 #include <string>
 #include <cppesphomeapi/cppesphomeapi_export.hpp>
+#include "api_version.hpp"
 #include "async_result.hpp"
+#include "commands.hpp"
+#include "device_info.hpp"
+#include "entity.hpp"
 
 namespace cppesphomeapi
 {
@@ -13,10 +17,19 @@ class ApiConnection;
 class CPPESPHOMEAPI_EXPORT ApiClient
 {
   public:
-    explicit ApiClient(const boost::asio::any_io_executor &executor, std::string hostname, std::uint16_t port = 6053, std::string password = "");
+    explicit ApiClient(const boost::asio::any_io_executor &executor,
+                       std::string hostname,
+                       std::uint16_t port = 6053,
+                       std::string password = "");
     ~ApiClient();
 
-    AsyncResult<void> connect();
+    [[nodiscard]] std::optional<ApiVersion> api_version() const;
+    [[nodiscard]] const std::string &device_name() const;
+    AsyncResult<void> async_connect();
+    AsyncResult<void> async_disconnect();
+    AsyncResult<DeviceInfo> async_device_info();
+    AsyncResult<std::vector<EntityInfo>> async_list_entities_services();
+    AsyncResult<void> async_light_command(LightCommand light_command);
 
     ApiClient(const ApiClient &) = delete;
     ApiClient(ApiClient &&) = delete;

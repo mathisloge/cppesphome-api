@@ -18,15 +18,31 @@ awaitable<void> client()
 {
     auto executor = co_await this_coro::executor;
     cppesphomeapi::ApiClient api_client{executor, "192.168.0.31"};
-    const auto connect_response = co_await api_client.connect();
+    const auto connect_response = co_await api_client.async_connect();
     if (not connect_response.has_value())
     {
         std::println("Could not connect to client.");
+        co_return;
     }
     else
     {
-        std::println("Connected to client.");
+        std::println("Connected to client '{}' with version '{}.{}'",
+                     api_client.device_name(),
+                     api_client.api_version()->major,
+                     api_client.api_version()->minor);
     }
+    const auto device_info = co_await api_client.async_device_info();
+    std::println("Hello dev info: {}, compile_time {}", device_info->name, device_info->compilation_time);
+
+    const auto list = co_await api_client.async_list_entities_services();
+    if (not list.has_value())
+    {
+        std::println("couldn't get list {}", list.error().message);
+    }
+
+    co_await api_client.async_light_command({.key = 1111582032, .effect ="Pulsate"});
+
+    co_await api_client.async_disconnect();
 }
 
 } // namespace

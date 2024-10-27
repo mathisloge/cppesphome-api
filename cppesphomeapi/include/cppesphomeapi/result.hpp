@@ -11,7 +11,8 @@ enum ApiErrorCode
     SerializeError,
     ParseError,
     UnexpectedMessage,
-    SendError
+    SendError,
+    AuthentificationError
 };
 
 struct ApiError
