@@ -8,8 +8,10 @@ namespace cppesphomeapi
 
 enum ApiErrorCode
 {
+    SerializeError,
     ParseError,
-    UnexpectedMessage
+    UnexpectedMessage,
+    SendError
 };
 
 struct ApiError

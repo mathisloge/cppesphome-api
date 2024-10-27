@@ -4,14 +4,19 @@
 #include <memory>
 #include <string>
 #include <cppesphomeapi/cppesphomeapi_export.hpp>
+#include "async_result.hpp"
 
 namespace cppesphomeapi
 {
+class ApiConnection;
+
 class CPPESPHOMEAPI_EXPORT ApiClient
 {
   public:
-    ApiClient(std::string hostname, std::uint16_t port = 6053, std::string password = "");
+    explicit ApiClient(const boost::asio::any_io_executor &executor, std::string hostname, std::uint16_t port = 6053, std::string password = "");
     ~ApiClient();
+
+    AsyncResult<void> connect();
 
     ApiClient(const ApiClient &) = delete;
     ApiClient(ApiClient &&) = delete;
@@ -19,8 +24,7 @@ class CPPESPHOMEAPI_EXPORT ApiClient
     ApiClient &operator=(ApiClient &&) = delete;
 
   private:
-    class Impl;
-    std::unique_ptr<Impl> impl_;
+    std::unique_ptr<ApiConnection> connection_;
 };
 } // namespace cppesphomeapi
 #endif

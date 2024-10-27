@@ -1,5 +1,5 @@
 syntax = "proto3";
-
+package cppesphomeapi.proto;
 import "api_options.proto";
 
 service APIConnection {
