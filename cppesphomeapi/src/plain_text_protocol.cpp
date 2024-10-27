@@ -81,7 +81,8 @@ Result<std::vector<std::uint8_t>> plain_text_serialize(const ::google::protobuf:
     output_stream.WriteVarint32(message.ByteSizeLong());
     output_stream.WriteVarint32(msg_options.GetExtension(proto::id));
 
-    if(output_stream.ByteCount() != (kMaxHeaderLen - 1)) {
+    if (output_stream.ByteCount() != (kMaxHeaderLen - 1))
+    {
         buffer.resize(1 + message.ByteSizeLong() + output_stream.ByteCount());
     }
 

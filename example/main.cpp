@@ -40,7 +40,7 @@ awaitable<void> client()
         std::println("couldn't get list {}", list.error().message);
     }
 
-    co_await api_client.async_light_command({.key = 1111582032, .effect ="Pulsate"});
+    co_await api_client.async_light_command({.key = 1111582032, .effect = "Pulsate"});
 
     co_await api_client.async_disconnect();
 }

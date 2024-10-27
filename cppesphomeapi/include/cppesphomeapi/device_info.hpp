@@ -1,7 +1,7 @@
 #ifndef CPPESPHOMEAPI_DEVICE_INFO_HPP
 #define CPPESPHOMEAPI_DEVICE_INFO_HPP
-#include <string>
 #include <cstdint>
+#include <string>
 
 namespace cppesphomeapi
 {
