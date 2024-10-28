@@ -1,4 +1,5 @@
 #include <print>
+#include <thread>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
@@ -50,12 +51,18 @@ int main()
 {
     try
     {
-        asio::io_context io_context(1);
+        asio::io_context io_context(4);
 
         asio::signal_set signals(io_context, SIGINT, SIGTERM);
         signals.async_wait([&](auto, auto) { io_context.stop(); });
 
         co_spawn(io_context, client(), detached);
+
+        std::vector<std::jthread> io_threads;
+        for (int i = 0; i < 3; i++)
+        {
+            io_threads.emplace_back([&io_context]() { io_context.run(); });
+        }
         io_context.run();
     }
     catch (std::exception &e)

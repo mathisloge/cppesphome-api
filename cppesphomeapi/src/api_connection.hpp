@@ -1,9 +1,12 @@
 #pragma once
 #include <cstdint>
 #include <string>
+#include <boost/asio/any_completion_handler.hpp>
 #include <boost/asio/executor.hpp>
 #include <boost/asio/strand.hpp>
+#include <boost/asio/use_awaitable.hpp>
 #include <google/protobuf/message.h>
+#include "api.pb.h"
 #include "cppesphomeapi/api_client.hpp"
 #include "cppesphomeapi/api_version.hpp"
 #include "cppesphomeapi/async_result.hpp"
@@ -21,6 +24,7 @@ struct overloaded : Ts...
 {
     using Ts::operator()...;
 };
+
 } // namespace detail
 
 class ApiConnection
@@ -44,13 +48,33 @@ class ApiConnection
   private:
     AsyncResult<void> send_message(const google::protobuf::Message &message);
 
-    template <typename TMsg>
-    auto receive_message() -> AsyncResult<TMsg>
+    template <boost::asio::completion_token_for<void(std::shared_ptr<google::protobuf::Message>)> CompletionToken>
+    auto async_receive_message(CompletionToken &&token)
     {
-        namespace asio = boost::asio;
-        std::array<std::uint8_t, 512> buffer{};
-        const auto received_bytes = co_await socket_.async_receive(asio::buffer(buffer));
-        co_return plain_text_decode<TMsg>(std::span{buffer.begin(), received_bytes});
+        auto init =
+            [this](boost::asio::completion_handler_for<void(std::shared_ptr<google::protobuf::Message>)> auto handler) {
+                std::unique_lock l{handler_mtx_};
+                handlers_.emplace_back(std::move(handler));
+            };
+        return boost::asio::async_initiate<CompletionToken, void(std::shared_ptr<google::protobuf::Message>)>(
+            init, // First, pass the function object that launches the operation,
+            token // then the completion token that will be transformed to a handler,
+        );        // and, finally, any additional arguments to the function object.
+    }
+
+    template <typename TMsg>
+    auto receive_message() -> AsyncResult<std::shared_ptr<TMsg>>
+    {
+        while (true)
+        {
+            const auto received_message = co_await async_receive_message(boost::asio::use_awaitable);
+            auto msg = std::dynamic_pointer_cast<TMsg>(received_message);
+            if (msg != nullptr)
+            {
+                co_return msg;
+            }
+        }
+        co_return make_unexpected_result(ApiErrorCode::UnexpectedMessage, "could not receive any message");
     }
 
     template <typename TStopMsg, typename... TMsgs>
@@ -64,25 +88,22 @@ class ApiConnection
         bool do_receive{true};
         while (do_receive)
         {
-            const auto received_bytes = co_await socket_.async_receive(asio::buffer(buffer));
-            auto multiple_messages =
-                plain_text_decode_multiple<TStopMsg, TMsgs...>(std::span{buffer.begin(), received_bytes});
-            if (not multiple_messages.has_value())
-            {
-                co_return std::unexpected(multiple_messages.error());
-            }
-            for (auto &&message : multiple_messages.value())
-            {
-                std::visit(detail::overloaded{
-                               [](std::monostate) { /* todo make error */ },
-                               [&do_receive](TStopMsg /*stop_msg*/) { do_receive = false; },
-                               [&messages](auto &&msg) { messages.emplace_back(std::forward<decltype(msg)>(msg)); },
-                           },
-                           std::move(message));
-            }
+            const std::shared_ptr<google::protobuf::Message> message =
+                co_await async_receive_message(boost::asio::use_awaitable);
+            std::println("received a message", message->GetTypeName());
+            // std::visit(detail::overloaded{
+            //                [](std::monostate) { /* todo make error */ },
+            //                [&do_receive](TStopMsg /*stop_msg*/) { do_receive = false; },
+            //                [&messages](auto &&msg) { messages.emplace_back(std::forward<decltype(msg)>(msg)); },
+            //            },
+            //            std::move(message));
         }
         co_return messages;
     }
+
+  private:
+    boost::asio::awaitable<void> subscribe_logs();
+    boost::asio::awaitable<void> async_receive();
 
   private:
     std::string hostname_;
@@ -93,5 +114,9 @@ class ApiConnection
 
     std::string device_name_;
     std::optional<ApiVersion> api_version_;
+
+    mutable std::mutex handler_mtx_;
+    std::vector<boost::asio::any_completion_handler<void(std::shared_ptr<google::protobuf::Message> message)>>
+        handlers_;
 };
 } // namespace cppesphomeapi

@@ -109,4 +109,142 @@ auto plain_text_decode_multiple(std::span<const std::uint8_t> received_data)
     }
     return messages;
 }
+
+/////// WIP
+
+struct PlainTextProtocol
+{
+    template <typename TMsg>
+    auto parse_and_invoke(google::protobuf::io::CodedInputStream *stream,
+                          const std::uint32_t message_type,
+                          auto &&message_handler) -> bool
+    {
+        if (TMsg::GetDescriptor()->options().GetExtension(proto::id) != message_type)
+        {
+            return false;
+        }
+
+        std::shared_ptr<TMsg> message = std::make_shared<TMsg>();
+        const bool parsed = message->ParseFromCodedStream(stream);
+        if (not parsed)
+        {
+            return false;
+        }
+        std::println("got message {}", TMsg::GetDescriptor()->name());
+        message_handler(std::move(message));
+        return true;
+    }
+
+    template <typename... TMsgs>
+    auto decode_multiple(std::span<const std::uint8_t> received_data, auto &&message_handler) -> Result<void>
+    {
+        if (received_data.size() < 3)
+        {
+            return make_unexpected_result(ApiErrorCode::ParseError,
+                                          "response does not contain enough bytes for the header");
+        }
+
+        google::protobuf::io::CodedInputStream stream{received_data.data(), static_cast<int>(received_data.size())};
+        while (stream.BytesUntilLimit() > 0)
+        {
+            std::println("remaining bytes: {}", stream.BytesUntilLimit());
+            std::uint32_t preamble{};
+            if (not stream.ReadVarint32(&preamble) or preamble != 0x00)
+            {
+                return make_unexpected_result(ApiErrorCode::ParseError, "response does contain an invalid preamble");
+            }
+
+            std::uint32_t message_size{};
+            if (not stream.ReadVarint32(&message_size))
+            {
+                return make_unexpected_result(ApiErrorCode::ParseError, "got no message size");
+            }
+
+            std::uint32_t message_type{};
+            if (not stream.ReadVarint32(&message_type))
+            {
+                return make_unexpected_result(ApiErrorCode::ParseError, "got no message type");
+            }
+
+            const std::array<const google::protobuf::Descriptor *, sizeof...(TMsgs)> possible_ids{
+                TMsgs::GetDescriptor()...};
+            const auto valid_msg =
+                std::any_of(possible_ids.cbegin(), possible_ids.cend(), [message_type](auto &&desc_id) {
+                    return desc_id->options().GetExtension(proto::id) == message_type;
+                });
+            if (not valid_msg)
+            {
+                return make_unexpected_result(ApiErrorCode::UnexpectedMessage,
+                                              std::format("got unexpected message id {}", message_type));
+            }
+
+            if (stream.BytesUntilLimit() < message_size)
+            {
+                return make_unexpected_result(
+                    ApiErrorCode::ParseError,
+                    std::format(
+                        "Received message size does not match the remaining bytes. Expected {} bytes got {} bytes.",
+                        message_size,
+                        stream.BytesUntilLimit()));
+            }
+
+            const bool parsed = (parse_and_invoke<TMsgs>(std::addressof(stream), message_type, message_handler) || ...);
+            if (not parsed)
+            {
+                return make_unexpected_result(ApiErrorCode::ParseError,
+                                              std::format("Could not parse any message from bytes."));
+            }
+        }
+        return Result<void>{};
+    }
+};
+
+struct DynamicPlainTextProtocol
+{
+
+    auto decode(std::span<const std::uint8_t> received_data,
+                std::function<void(const google::protobuf::Message &message)> callback) -> Result<void>
+    {
+        if (received_data.size() < 3)
+        {
+            return make_unexpected_result(ApiErrorCode::ParseError,
+                                          "response does not contain enough bytes for the header");
+        }
+        auto &&pool{google::protobuf::DescriptorPool::generated_pool()};
+
+        google::protobuf::io::CodedInputStream stream{received_data.data(), static_cast<int>(received_data.size())};
+        while (stream.BytesUntilLimit() > 0)
+        {
+            std::println("remaining bytes: {}", stream.BytesUntilLimit());
+            std::uint32_t preamble{};
+            if (not stream.ReadVarint32(&preamble) or preamble != 0x00)
+            {
+                return make_unexpected_result(ApiErrorCode::ParseError, "response does contain an invalid preamble");
+            }
+
+            std::uint32_t message_size{};
+            if (not stream.ReadVarint32(&message_size))
+            {
+                return make_unexpected_result(ApiErrorCode::ParseError, "got no message size");
+            }
+
+            std::uint32_t message_type{};
+            if (not stream.ReadVarint32(&message_type))
+            {
+                return make_unexpected_result(ApiErrorCode::ParseError, "got no message type");
+            }
+
+            if (stream.BytesUntilLimit() < message_size)
+            {
+                return make_unexpected_result(
+                    ApiErrorCode::ParseError,
+                    std::format(
+                        "Received message size does not match the remaining bytes. Expected {} bytes got {} bytes.",
+                        message_size,
+                        stream.BytesUntilLimit()));
+            }
+        }
+    }
+};
+
 } // namespace cppesphomeapi
