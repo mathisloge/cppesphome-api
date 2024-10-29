@@ -1,6 +1,5 @@
 #pragma once
 #include <memory>
-#include <print>
 #include <google/protobuf/message.h>
 #include "api_options.pb.h"
 #include "get_message_id.hpp"
@@ -25,12 +24,7 @@ class MessageWrapper
         const auto requested_message = detail::get_message_id<TMsg>();
         if (requested_message == message_id_)
         {
-            auto cnv_msg = std::dynamic_pointer_cast<TMsg>(message_);
-            if (cnv_msg == nullptr)
-            {
-                std::println("Got null msg for {}, message is null=", message_id_, (message_ == nullptr));
-            }
-            return cnv_msg;
+            return std::dynamic_pointer_cast<TMsg>(message_);
         }
         return nullptr;
     }
