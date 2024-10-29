@@ -109,31 +109,32 @@ AsyncResult<DeviceInfo> ApiConnection::request_device_info()
 AsyncResult<std::vector<EntityInfo>> ApiConnection::request_entities_and_services()
 {
     proto::ListEntitiesRequest request;
+    auto message_receiver = receive_messages<proto::ListEntitiesDoneResponse,
+                                             proto::ListEntitiesAlarmControlPanelResponse,
+                                             proto::ListEntitiesBinarySensorResponse,
+                                             proto::ListEntitiesButtonResponse,
+                                             proto::ListEntitiesCameraResponse,
+                                             proto::ListEntitiesClimateResponse,
+                                             proto::ListEntitiesCoverResponse,
+                                             proto::ListEntitiesDateResponse,
+                                             proto::ListEntitiesDateTimeResponse,
+                                             proto::ListEntitiesEventResponse,
+                                             proto::ListEntitiesFanResponse,
+                                             proto::ListEntitiesLightResponse,
+                                             proto::ListEntitiesLockResponse,
+                                             proto::ListEntitiesMediaPlayerResponse,
+                                             proto::ListEntitiesNumberResponse,
+                                             proto::ListEntitiesSelectResponse,
+                                             proto::ListEntitiesSensorResponse,
+                                             proto::ListEntitiesServicesResponse,
+                                             proto::ListEntitiesSwitchResponse,
+                                             proto::ListEntitiesTextResponse,
+                                             proto::ListEntitiesTextSensorResponse,
+                                             proto::ListEntitiesTimeResponse,
+                                             proto::ListEntitiesUpdateResponse,
+                                             proto::ListEntitiesValveResponse>(asio::deferred);
     REQUIRE_SUCCESS(co_await send_message(request));
-    const auto messages = co_await receive_messages<proto::ListEntitiesDoneResponse,
-                                                    proto::ListEntitiesAlarmControlPanelResponse,
-                                                    proto::ListEntitiesBinarySensorResponse,
-                                                    proto::ListEntitiesButtonResponse,
-                                                    proto::ListEntitiesCameraResponse,
-                                                    proto::ListEntitiesClimateResponse,
-                                                    proto::ListEntitiesCoverResponse,
-                                                    proto::ListEntitiesDateResponse,
-                                                    proto::ListEntitiesDateTimeResponse,
-                                                    proto::ListEntitiesEventResponse,
-                                                    proto::ListEntitiesFanResponse,
-                                                    proto::ListEntitiesLightResponse,
-                                                    proto::ListEntitiesLockResponse,
-                                                    proto::ListEntitiesMediaPlayerResponse,
-                                                    proto::ListEntitiesNumberResponse,
-                                                    proto::ListEntitiesSelectResponse,
-                                                    proto::ListEntitiesSensorResponse,
-                                                    proto::ListEntitiesServicesResponse,
-                                                    proto::ListEntitiesSwitchResponse,
-                                                    proto::ListEntitiesTextResponse,
-                                                    proto::ListEntitiesTextSensorResponse,
-                                                    proto::ListEntitiesTimeResponse,
-                                                    proto::ListEntitiesUpdateResponse,
-                                                    proto::ListEntitiesValveResponse>();
+    auto messages = co_await std::move(message_receiver);
     REQUIRE_SUCCESS(messages);
 
     for (auto &&msg : messages.value())

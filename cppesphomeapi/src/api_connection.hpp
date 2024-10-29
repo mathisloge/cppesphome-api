@@ -96,7 +96,7 @@ class ApiConnection
     }
 
     template <typename TStopMsg, typename... TMsgs>
-    auto receive_messages() -> AsyncResult<std::vector<std::variant<std::shared_ptr<TMsgs>...>>>
+    auto receive_messages(auto &&comletion_token) -> AsyncResult<std::vector<std::variant<std::shared_ptr<TMsgs>...>>>
     {
         std::vector<std::variant<std::shared_ptr<TMsgs>...>> messages;
         // todo: add stop source
@@ -108,7 +108,7 @@ class ApiConnection
         while (do_receive)
         {
             std::shared_ptr<google::protobuf::Message> message =
-                co_await async_receive_message(boost::asio::use_awaitable);
+                co_await async_receive_message(std::forward<decltype(comletion_token)>(comletion_token));
             const auto received_id = message->GetDescriptor()->options().GetExtension(proto::id);
             const auto accepted_msg = std::any_of(accepted_ids.cbegin(),
                                                   accepted_ids.cend(),
