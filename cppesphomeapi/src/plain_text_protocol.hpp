@@ -5,6 +5,7 @@
 #include "api_options.pb.h"
 #include "cppesphomeapi/result.hpp"
 #include "make_unexpected_result.hpp"
+#include "message_wrapper.hpp"
 
 #include <print>
 namespace cppesphomeapi
@@ -24,13 +25,13 @@ struct PlainTextProtocol
             return false;
         }
 
-        std::shared_ptr<TMsg> message = std::make_shared<TMsg>();
+        auto message = std::make_shared<TMsg>();
         const bool parsed = message->ParseFromCodedStream(stream);
         if (not parsed)
         {
             return false;
         }
-        message_handler(std::move(message));
+        message_handler(MessageWrapper{std::move(message)});
         return true;
     }
 

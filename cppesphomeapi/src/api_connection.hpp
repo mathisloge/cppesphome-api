@@ -12,21 +12,13 @@
 #include "cppesphomeapi/async_result.hpp"
 #include "cppesphomeapi/commands.hpp"
 #include "cppesphomeapi/device_info.hpp"
-#include "plain_text_protocol.hpp"
+#include "make_unexpected_result.hpp"
+#include "message_wrapper.hpp"
+#include "overloaded.hpp"
 #include "tcp.hpp"
 
 namespace cppesphomeapi
 {
-namespace detail
-{
-template <class... Ts>
-struct overloaded : Ts...
-{
-    using Ts::operator()...;
-};
-
-} // namespace detail
-
 class ApiConnection
 {
   public:
@@ -48,84 +40,73 @@ class ApiConnection
   private:
     AsyncResult<void> send_message(const google::protobuf::Message &message);
 
-    template <boost::asio::completion_token_for<void(std::shared_ptr<google::protobuf::Message>)> CompletionToken>
+    template <boost::asio::completion_token_for<void(MessageWrapper)> CompletionToken>
     auto async_receive_message(CompletionToken &&token)
     {
-        auto init =
-            [this](boost::asio::completion_handler_for<void(std::shared_ptr<google::protobuf::Message>)> auto handler) {
-                std::unique_lock l{handler_mtx_};
-                handlers_.emplace_back(std::move(handler));
-            };
-        return boost::asio::async_initiate<CompletionToken, void(std::shared_ptr<google::protobuf::Message>)>(
+        auto init = [this](boost::asio::completion_handler_for<void(MessageWrapper)> auto handler) {
+            std::unique_lock l{handler_mtx_};
+            handlers_.emplace_back(std::move(handler));
+        };
+        return boost::asio::async_initiate<CompletionToken, void(MessageWrapper)>(
             init, // First, pass the function object that launches the operation,
             token // then the completion token that will be transformed to a handler,
         );        // and, finally, any additional arguments to the function object.
     }
 
     template <typename TMsg>
-    auto receive_message() -> AsyncResult<std::shared_ptr<TMsg>>
+    auto receive_message(auto &&completion_token) -> AsyncResult<std::shared_ptr<TMsg>>
     {
         while (true)
         {
-            const auto received_message = co_await async_receive_message(boost::asio::use_awaitable);
-            auto msg = std::dynamic_pointer_cast<TMsg>(received_message);
-            if (msg != nullptr)
+            const auto received_message =
+                co_await async_receive_message(std::forward<decltype(completion_token)>(completion_token));
+            if (received_message.template holds_message<TMsg>())
             {
-                co_return msg;
+                co_return received_message.template as<TMsg>();
             }
         }
         co_return make_unexpected_result(ApiErrorCode::UnexpectedMessage, "could not receive any message");
     }
 
     template <typename TMsg>
-    static constexpr auto make_message_variant(auto &variant,
-                                               std::shared_ptr<google::protobuf::Message> message,
-                                               const std::uint32_t received_id)
+    static constexpr bool handle_message_impl(const auto &visitor, const MessageWrapper &wrapper)
     {
-        if (received_id != TMsg::GetDescriptor()->options().GetExtension(proto::id))
+        if (not wrapper.holds_message<TMsg>())
         {
             return false;
         }
-        auto real_message = std::dynamic_pointer_cast<TMsg>(message);
-        if (real_message == nullptr)
-        {
-            return false;
-        }
-        variant = std::move(real_message);
+        visitor(wrapper.as<TMsg>());
         return true;
+    }
+    template <typename... TMsgs>
+    static constexpr void handle_messages(auto &&visitor, const MessageWrapper &wrapper)
+    {
+        (handle_message_impl<TMsgs>(visitor, wrapper) || ...);
     }
 
     template <typename TStopMsg, typename... TMsgs>
     auto receive_messages(auto &&comletion_token) -> AsyncResult<std::vector<std::variant<std::shared_ptr<TMsgs>...>>>
     {
         std::vector<std::variant<std::shared_ptr<TMsgs>...>> messages;
+        messages.resize(sizeof...(TMsgs)); // at least enough space to receive each message once.
         // todo: add stop source
         bool do_receive{true};
-        const std::array<std::uint32_t, sizeof...(TMsgs) + 1> accepted_ids{
-            TMsgs::GetDescriptor()->options().GetExtension(proto::id)...,
-            TStopMsg::GetDescriptor()->options().GetExtension(proto::id)};
-
         while (do_receive)
         {
-            std::shared_ptr<google::protobuf::Message> message =
+            const MessageWrapper message =
                 co_await async_receive_message(std::forward<decltype(comletion_token)>(comletion_token));
-            const auto received_id = message->GetDescriptor()->options().GetExtension(proto::id);
-            const auto accepted_msg = std::any_of(accepted_ids.cbegin(),
-                                                  accepted_ids.cend(),
-                                                  [received_id](auto msg_id) { return msg_id == received_id; });
+
+            const bool accepted_msg = message.holds_message<TStopMsg>() || (message.holds_message<TMsgs>() || ...);
             if (not accepted_msg)
             {
                 continue;
             }
-            std::variant<std::monostate, std::shared_ptr<TStopMsg>, std::shared_ptr<TMsgs>...> msg_variant;
-            const auto valid = make_message_variant<TStopMsg>(msg_variant, message, received_id) ||
-                               (make_message_variant<TMsgs>(msg_variant, message, received_id) || ...);
-            std::visit(detail::overloaded{
-                           [](std::monostate) { /* todo make error */ },
-                           [&do_receive](std::shared_ptr<TStopMsg> /*stop_msg*/) { do_receive = false; },
-                           [&messages](auto &&msg) { messages.emplace_back(std::forward<decltype(msg)>(msg)); },
-                       },
-                       std::move(msg_variant));
+            handle_messages<TStopMsg, TMsgs...>(
+                detail::overloaded{
+                    [&do_receive](std::shared_ptr<TStopMsg> /*stop_msg*/) { do_receive = false; },
+                    [&messages](auto &&msg) { messages.emplace_back(std::forward<decltype(msg)>(msg)); },
+                },
+                message);
         }
         co_return messages;
     }
@@ -145,7 +126,6 @@ class ApiConnection
     std::optional<ApiVersion> api_version_;
 
     mutable std::mutex handler_mtx_;
-    std::vector<boost::asio::any_completion_handler<void(std::shared_ptr<google::protobuf::Message> message)>>
-        handlers_;
+    std::vector<boost::asio::any_completion_handler<void(MessageWrapper)>> handlers_;
 };
 } // namespace cppesphomeapi

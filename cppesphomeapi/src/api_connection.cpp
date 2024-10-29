@@ -3,6 +3,7 @@
 #include <boost/asio.hpp>
 #include "api.pb.h"
 #include "make_unexpected_result.hpp"
+#include "plain_text_protocol.hpp"
 
 namespace asio = boost::asio;
 namespace this_coro = asio::this_coro;
@@ -51,7 +52,7 @@ AsyncResult<void> ApiConnection::disconnect()
 {
     proto::DisconnectRequest request;
     REQUIRE_SUCCESS(co_await send_message(request));
-    REQUIRE_SUCCESS(co_await receive_message<proto::DisconnectResponse>());
+    REQUIRE_SUCCESS(co_await receive_message<proto::DisconnectResponse>(asio::use_awaitable));
     co_return Result<void>{};
 }
 
@@ -60,7 +61,7 @@ AsyncResult<void> ApiConnection::send_message_hello()
     proto::HelloRequest request;
     request.set_client_info(std::string{"cppapi"});
     REQUIRE_SUCCESS(co_await send_message(request));
-    auto response = co_await receive_message<proto::HelloResponse>();
+    auto response = co_await receive_message<proto::HelloResponse>(asio::use_awaitable);
     REQUIRE_SUCCESS(response);
     auto message = std::move(response.value());
     device_name_ = message->name();
@@ -73,7 +74,7 @@ AsyncResult<void> ApiConnection::send_message_connect()
     proto::ConnectRequest request;
     request.set_password(password_);
     REQUIRE_SUCCESS(co_await send_message(request));
-    auto response = co_await receive_message<proto::ConnectResponse>();
+    auto response = co_await receive_message<proto::ConnectResponse>(asio::use_awaitable);
     REQUIRE_SUCCESS(response);
     auto message = std::move(response.value());
     if (message->invalid_password())
@@ -87,7 +88,7 @@ AsyncResult<DeviceInfo> ApiConnection::request_device_info()
 {
     proto::DeviceInfoRequest device_request{};
     REQUIRE_SUCCESS(co_await send_message(device_request));
-    const auto response = co_await receive_message<proto::DeviceInfoResponse>();
+    const auto response = co_await receive_message<proto::DeviceInfoResponse>(asio::use_awaitable);
     REQUIRE_SUCCESS(response);
     auto message = std::move(response.value());
 
@@ -193,7 +194,7 @@ boost::asio::awaitable<void> ApiConnection::subscribe_logs()
     co_await send_message(request);
     while (true)
     {
-        auto response = co_await receive_message<proto::SubscribeLogsResponse>();
+        auto response = co_await receive_message<proto::SubscribeLogsResponse>(asio::use_awaitable);
         if (response.has_value())
         {
             std::println("Got log message {}", response.value()->message());
@@ -210,7 +211,6 @@ boost::asio::awaitable<void> ApiConnection::async_receive()
     while (do_receive)
     {
         const auto received_bytes = co_await socket_.async_receive(asio::buffer(buffer));
-
         auto result = PlainTextProtocol{}
                           .decode_multiple<proto::SubscribeLogsResponse,
                                            proto::DeviceInfoResponse,
@@ -242,9 +242,7 @@ boost::asio::awaitable<void> ApiConnection::async_receive()
                                            proto::ListEntitiesUpdateResponse,
                                            proto::ListEntitiesValveResponse>(
                               std::span{buffer.begin(), received_bytes}, [this](auto &&message) {
-                                  std::vector<boost::asio::any_completion_handler<void(
-                                      std::shared_ptr<google::protobuf::Message> message)>>
-                                      handlers;
+                                  std::vector<boost::asio::any_completion_handler<void(MessageWrapper)>> handlers;
                                   {
                                       std::unique_lock l{handler_mtx_};
                                       handlers = std::exchange(handlers_, {});
