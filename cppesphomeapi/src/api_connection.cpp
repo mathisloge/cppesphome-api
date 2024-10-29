@@ -43,8 +43,6 @@ AsyncResult<void> ApiConnection::connect()
 
     REQUIRE_SUCCESS(co_await send_message_hello());
     REQUIRE_SUCCESS(co_await send_message_connect());
-
-    asio::co_spawn(executor, std::bind(&ApiConnection::subscribe_logs, this), asio::detached);
     co_return Result<void>{};
 }
 
@@ -186,20 +184,22 @@ const std::string &ApiConnection::device_name() const
     return device_name_;
 }
 
-boost::asio::awaitable<void> ApiConnection::subscribe_logs()
+AsyncResult<void> ApiConnection::enable_logs(EspHomeLogLevel log_level, bool config_dump)
 {
     proto::SubscribeLogsRequest request;
-    request.set_dump_config(true);
-    request.set_level(::cppesphomeapi::proto::LogLevel::LOG_LEVEL_VERY_VERBOSE);
-    co_await send_message(request);
-    while (true)
-    {
-        auto response = co_await receive_message<proto::SubscribeLogsResponse>(asio::use_awaitable);
-        if (response.has_value())
-        {
-            std::println("Got log message {}", response.value()->message());
-        }
-    }
+    request.set_dump_config(config_dump);
+    request.set_level(::cppesphomeapi::proto::LogLevel(std::to_underlying(log_level)));
+    co_return co_await send_message(request);
+}
+
+AsyncResult<LogEntry> ApiConnection::receive_log()
+{
+    const auto message = co_await receive_message<proto::SubscribeLogsResponse>(asio::use_awaitable);
+    REQUIRE_SUCCESS(message);
+    co_return LogEntry{
+        .log_level = EspHomeLogLevel{std::to_underlying(message.value()->level())},
+        .message = message.value()->message(),
+    };
 }
 
 boost::asio::awaitable<void> ApiConnection::async_receive()

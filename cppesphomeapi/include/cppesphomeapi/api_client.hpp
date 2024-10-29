@@ -7,6 +7,7 @@
 #include "api_version.hpp"
 #include "async_result.hpp"
 #include "commands.hpp"
+#include "cppesphomeapi/log_entry.hpp"
 #include "device_info.hpp"
 #include "entity.hpp"
 
@@ -30,6 +31,8 @@ class CPPESPHOMEAPI_EXPORT ApiClient
     AsyncResult<DeviceInfo> async_device_info();
     AsyncResult<std::vector<EntityInfo>> async_list_entities_services();
     AsyncResult<void> async_light_command(LightCommand light_command);
+    AsyncResult<void> enable_logs(EspHomeLogLevel log_level, bool config_dump);
+    AsyncResult<LogEntry> receive_log();
 
     ApiClient(const ApiClient &) = delete;
     ApiClient(ApiClient &&) = delete;

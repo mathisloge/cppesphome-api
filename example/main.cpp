@@ -34,6 +34,21 @@ awaitable<void> client()
                      api_client.api_version()->major,
                      api_client.api_version()->minor);
     }
+    co_spawn(
+        executor,
+        [&api_client]() -> asio::awaitable<void> {
+            while (true)
+            {
+                auto log_message = co_await api_client.receive_log();
+                if (log_message.has_value())
+                {
+                    std::println("ESPHOME_LOG: {}", log_message->message);
+                }
+            }
+        },
+        detached);
+    co_await api_client.enable_logs(cppesphomeapi::EspHomeLogLevel::VeryVerbose, true);
+
     const auto device_info = co_await api_client.async_device_info();
     std::println("Hello dev info: {}, compile_time {}", device_info->name, device_info->compilation_time);
 
@@ -42,7 +57,6 @@ awaitable<void> client()
     {
         std::println("couldn't get list {}", list.error().message);
     }
-
     co_await api_client.async_light_command({.key = 1111582032, .effect = "Pulsate"});
     asio::steady_timer timer{executor, std::chrono::seconds{100}};
     co_await timer.async_wait();
@@ -54,7 +68,7 @@ int main()
 {
     try
     {
-        asio::io_context io_context(4);
+        asio::io_context io_context(5);
 
         asio::signal_set signals(io_context, SIGINT, SIGTERM);
         signals.async_wait([&](auto, auto) { io_context.stop(); });

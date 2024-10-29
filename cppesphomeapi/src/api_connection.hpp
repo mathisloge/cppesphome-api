@@ -36,6 +36,8 @@ class ApiConnection
     AsyncResult<void> light_command(LightCommand light_command);
     const std::optional<ApiVersion> &api_version() const;
     const std::string &device_name() const;
+    AsyncResult<void> enable_logs(EspHomeLogLevel log_level, bool config_dump);
+    AsyncResult<LogEntry> receive_log();
 
   private:
     AsyncResult<void> send_message(const google::protobuf::Message &message);
@@ -88,7 +90,7 @@ class ApiConnection
     auto receive_messages(auto &&comletion_token) -> AsyncResult<std::vector<std::variant<std::shared_ptr<TMsgs>...>>>
     {
         std::vector<std::variant<std::shared_ptr<TMsgs>...>> messages;
-        messages.resize(sizeof...(TMsgs)); // at least enough space to receive each message once.
+        messages.reserve(sizeof...(TMsgs)); // at least enough space to receive each message once.
         // todo: add stop source
         bool do_receive{true};
         while (do_receive)
@@ -112,7 +114,6 @@ class ApiConnection
     }
 
   private:
-    boost::asio::awaitable<void> subscribe_logs();
     boost::asio::awaitable<void> async_receive();
 
   private:
