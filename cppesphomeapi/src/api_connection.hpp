@@ -78,9 +78,9 @@ class ApiConnection
     }
 
     template <typename TMsg>
-    static auto make_message_variant(auto &variant,
-                                     std::shared_ptr<google::protobuf::Message> message,
-                                     const std::uint32_t received_id)
+    static constexpr auto make_message_variant(auto &variant,
+                                               std::shared_ptr<google::protobuf::Message> message,
+                                               const std::uint32_t received_id)
     {
         if (received_id != TMsg::GetDescriptor()->options().GetExtension(proto::id))
         {
@@ -101,25 +101,25 @@ class ApiConnection
         std::vector<std::variant<std::shared_ptr<TMsgs>...>> messages;
         // todo: add stop source
         bool do_receive{true};
-        const std::array<const google::protobuf::Descriptor *, sizeof...(TMsgs)> accepted_ids{
-            TMsgs::GetDescriptor()->options().GetExtension(proto::id)...};
+        const std::array<std::uint32_t, sizeof...(TMsgs) + 1> accepted_ids{
+            TMsgs::GetDescriptor()->options().GetExtension(proto::id)...,
+            TStopMsg::GetDescriptor()->options().GetExtension(proto::id)};
 
         while (do_receive)
         {
             std::shared_ptr<google::protobuf::Message> message =
                 co_await async_receive_message(boost::asio::use_awaitable);
             const auto received_id = message->GetDescriptor()->options().GetExtension(proto::id);
-            const auto accepted_msg =
-                std::any_of(accepted_ids.cbegin(), accepted_ids.cend(), [received_id](auto &&desc_id) {
-                    return desc_id->options().GetExtension(proto::id) == received_id;
-                });
+            const auto accepted_msg = std::any_of(accepted_ids.cbegin(),
+                                                  accepted_ids.cend(),
+                                                  [received_id](auto msg_id) { return msg_id == received_id; });
             if (not accepted_msg)
             {
                 continue;
             }
-            std::variant<std::monostate, std::shared_ptr<TMsgs>...> msg_variant;
-            const auto valid = (make_message_variant<TMsgs>(msg_variant, message, received_id) || ...);
-
+            std::variant<std::monostate, std::shared_ptr<TStopMsg>, std::shared_ptr<TMsgs>...> msg_variant;
+            const auto valid = make_message_variant<TStopMsg>(msg_variant, message, received_id) ||
+                               (make_message_variant<TMsgs>(msg_variant, message, received_id) || ...);
             std::visit(detail::overloaded{
                            [](std::monostate) { /* todo make error */ },
                            [&do_receive](std::shared_ptr<TStopMsg> /*stop_msg*/) { do_receive = false; },

@@ -248,7 +248,8 @@ boost::asio::awaitable<void> ApiConnection::async_receive()
                                       std::unique_lock l{handler_mtx_};
                                       handlers = std::exchange(handlers_, {});
                                   }
-                                  std::println("Received message {}", message->GetTypeName());
+                                  // todo: add small ring buffer if the handlers are empty or try to return the
+                                  // acceptance from the handler.
                                   for (auto &&handler : handlers)
                                   {
                                       auto work = boost::asio::make_work_guard(handler);
@@ -264,6 +265,7 @@ boost::asio::awaitable<void> ApiConnection::async_receive()
                                                   std::move(handler)(std::move(result));
                                               }));
                                   }
+                                  // std::println("Received message {}", message->GetTypeName());
                               });
     }
     std::println("RECEIVE ENDED!");
