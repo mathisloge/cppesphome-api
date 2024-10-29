@@ -1,8 +1,9 @@
 #include "api_connection.hpp"
+#include <print>
+#include <boost/asio.hpp>
 #include "api.pb.h"
 #include "make_unexpected_result.hpp"
-
-#include <print>
+#include "plain_text_protocol.hpp"
 
 namespace asio = boost::asio;
 namespace this_coro = asio::this_coro;
@@ -38,9 +39,12 @@ AsyncResult<void> ApiConnection::connect()
     co_await socket_.async_connect(resolved->endpoint());
     socket_.set_option(asio::socket_base::keep_alive{true});
 
+    asio::co_spawn(strand_, std::bind(&ApiConnection::async_receive, this), asio::detached);
+
     REQUIRE_SUCCESS(co_await send_message_hello());
     REQUIRE_SUCCESS(co_await send_message_connect());
 
+    asio::co_spawn(executor, std::bind(&ApiConnection::subscribe_logs, this), asio::detached);
     co_return Result<void>{};
 }
 
@@ -48,7 +52,7 @@ AsyncResult<void> ApiConnection::disconnect()
 {
     proto::DisconnectRequest request;
     REQUIRE_SUCCESS(co_await send_message(request));
-    REQUIRE_SUCCESS(co_await receive_message<proto::DisconnectResponse>());
+    REQUIRE_SUCCESS(co_await receive_message<proto::DisconnectResponse>(asio::use_awaitable));
     co_return Result<void>{};
 }
 
@@ -57,10 +61,11 @@ AsyncResult<void> ApiConnection::send_message_hello()
     proto::HelloRequest request;
     request.set_client_info(std::string{"cppapi"});
     REQUIRE_SUCCESS(co_await send_message(request));
-    const auto response = co_await receive_message<proto::HelloResponse>();
+    auto response = co_await receive_message<proto::HelloResponse>(asio::use_awaitable);
     REQUIRE_SUCCESS(response);
-    device_name_ = response->name();
-    api_version_ = ApiVersion{.major = response->api_version_major(), .minor = response->api_version_minor()};
+    auto message = std::move(response.value());
+    device_name_ = message->name();
+    api_version_ = ApiVersion{.major = message->api_version_major(), .minor = message->api_version_minor()};
     co_return Result<void>{};
 }
 
@@ -69,8 +74,10 @@ AsyncResult<void> ApiConnection::send_message_connect()
     proto::ConnectRequest request;
     request.set_password(password_);
     REQUIRE_SUCCESS(co_await send_message(request));
-    const auto response = co_await receive_message<proto::ConnectResponse>();
-    if (response->invalid_password())
+    auto response = co_await receive_message<proto::ConnectResponse>(asio::use_awaitable);
+    REQUIRE_SUCCESS(response);
+    auto message = std::move(response.value());
+    if (message->invalid_password())
     {
         co_return make_unexpected_result(ApiErrorCode::AuthentificationError, "Invalid password");
     }
@@ -81,57 +88,59 @@ AsyncResult<DeviceInfo> ApiConnection::request_device_info()
 {
     proto::DeviceInfoRequest device_request{};
     REQUIRE_SUCCESS(co_await send_message(device_request));
-    const auto response = co_await receive_message<proto::DeviceInfoResponse>();
+    const auto response = co_await receive_message<proto::DeviceInfoResponse>(asio::use_awaitable);
     REQUIRE_SUCCESS(response);
+    auto message = std::move(response.value());
 
     co_return DeviceInfo{
-        .uses_password = response->uses_password(),
-        .has_deep_sleep = response->has_deep_sleep(),
-        .name = response->name(),
-        .friendly_name = response->friendly_name(),
-        .mac_address = response->mac_address(),
-        .compilation_time = response->compilation_time(), // todo: maybe parse directly into std::chrono?
-        .model = response->model(),
-        .manufacturer = response->manufacturer(),
-        .esphome_version = response->esphome_version(),
-        .webserver_port = static_cast<uint16_t>(response->webserver_port()),
-        .suggested_area = response->suggested_area(),
+        .uses_password = message->uses_password(),
+        .has_deep_sleep = message->has_deep_sleep(),
+        .name = message->name(),
+        .friendly_name = message->friendly_name(),
+        .mac_address = message->mac_address(),
+        .compilation_time = message->compilation_time(), // todo: maybe parse directly into std::chrono?
+        .model = message->model(),
+        .manufacturer = message->manufacturer(),
+        .esphome_version = message->esphome_version(),
+        .webserver_port = static_cast<uint16_t>(message->webserver_port()),
+        .suggested_area = message->suggested_area(),
     };
 }
 
 AsyncResult<std::vector<EntityInfo>> ApiConnection::request_entities_and_services()
 {
     proto::ListEntitiesRequest request;
+    auto message_receiver = receive_messages<proto::ListEntitiesDoneResponse,
+                                             proto::ListEntitiesAlarmControlPanelResponse,
+                                             proto::ListEntitiesBinarySensorResponse,
+                                             proto::ListEntitiesButtonResponse,
+                                             proto::ListEntitiesCameraResponse,
+                                             proto::ListEntitiesClimateResponse,
+                                             proto::ListEntitiesCoverResponse,
+                                             proto::ListEntitiesDateResponse,
+                                             proto::ListEntitiesDateTimeResponse,
+                                             proto::ListEntitiesEventResponse,
+                                             proto::ListEntitiesFanResponse,
+                                             proto::ListEntitiesLightResponse,
+                                             proto::ListEntitiesLockResponse,
+                                             proto::ListEntitiesMediaPlayerResponse,
+                                             proto::ListEntitiesNumberResponse,
+                                             proto::ListEntitiesSelectResponse,
+                                             proto::ListEntitiesSensorResponse,
+                                             proto::ListEntitiesServicesResponse,
+                                             proto::ListEntitiesSwitchResponse,
+                                             proto::ListEntitiesTextResponse,
+                                             proto::ListEntitiesTextSensorResponse,
+                                             proto::ListEntitiesTimeResponse,
+                                             proto::ListEntitiesUpdateResponse,
+                                             proto::ListEntitiesValveResponse>(asio::deferred);
     REQUIRE_SUCCESS(co_await send_message(request));
-    const auto messages = co_await receive_messages<proto::ListEntitiesDoneResponse,
-                                                    proto::ListEntitiesAlarmControlPanelResponse,
-                                                    proto::ListEntitiesBinarySensorResponse,
-                                                    proto::ListEntitiesButtonResponse,
-                                                    proto::ListEntitiesCameraResponse,
-                                                    proto::ListEntitiesClimateResponse,
-                                                    proto::ListEntitiesCoverResponse,
-                                                    proto::ListEntitiesDateResponse,
-                                                    proto::ListEntitiesDateTimeResponse,
-                                                    proto::ListEntitiesEventResponse,
-                                                    proto::ListEntitiesFanResponse,
-                                                    proto::ListEntitiesLightResponse,
-                                                    proto::ListEntitiesLockResponse,
-                                                    proto::ListEntitiesMediaPlayerResponse,
-                                                    proto::ListEntitiesNumberResponse,
-                                                    proto::ListEntitiesSelectResponse,
-                                                    proto::ListEntitiesSensorResponse,
-                                                    proto::ListEntitiesServicesResponse,
-                                                    proto::ListEntitiesSwitchResponse,
-                                                    proto::ListEntitiesTextResponse,
-                                                    proto::ListEntitiesTextSensorResponse,
-                                                    proto::ListEntitiesTimeResponse,
-                                                    proto::ListEntitiesUpdateResponse,
-                                                    proto::ListEntitiesValveResponse>();
+    auto messages = co_await std::move(message_receiver);
     REQUIRE_SUCCESS(messages);
 
     for (auto &&msg : messages.value())
     {
-        std::println("GOT LIST .{}", std::visit([](auto &&msg) { return msg.key(); }, msg));
+        std::println("GOT LIST .{}", std::visit([](auto &&msg) { return msg->key(); }, msg));
     }
     co_return std::vector<EntityInfo>{};
 }
@@ -150,7 +159,7 @@ AsyncResult<void> ApiConnection::light_command(LightCommand light_command)
 
 AsyncResult<void> ApiConnection::send_message(const google::protobuf::Message &message)
 {
-    const auto packet = plain_text_serialize(message);
+    const auto packet = PlainTextProtocol::serialize(message);
     if (packet.has_value())
     {
         const auto written = co_await socket_.async_write_some(asio::buffer(packet.value()));
@@ -175,5 +184,89 @@ const std::optional<ApiVersion> &ApiConnection::api_version() const
 const std::string &ApiConnection::device_name() const
 {
     return device_name_;
+}
+
+boost::asio::awaitable<void> ApiConnection::subscribe_logs()
+{
+    proto::SubscribeLogsRequest request;
+    request.set_dump_config(true);
+    request.set_level(::cppesphomeapi::proto::LogLevel::LOG_LEVEL_VERY_VERBOSE);
+    co_await send_message(request);
+    while (true)
+    {
+        auto response = co_await receive_message<proto::SubscribeLogsResponse>(asio::use_awaitable);
+        if (response.has_value())
+        {
+            std::println("Got log message {}", response.value()->message());
+        }
+    }
+}
+
+boost::asio::awaitable<void> ApiConnection::async_receive()
+{
+    namespace asio = boost::asio;
+    std::array<std::uint8_t, 2048> buffer{};
+    bool do_receive{true};
+
+    while (do_receive)
+    {
+        const auto received_bytes = co_await socket_.async_receive(asio::buffer(buffer));
+        auto result = PlainTextProtocol{}
+                          .decode_multiple<proto::SubscribeLogsResponse,
+                                           proto::DeviceInfoResponse,
+                                           proto::ConnectResponse,
+                                           proto::HelloResponse,
+                                           proto::DisconnectResponse,
+                                           proto::ListEntitiesDoneResponse,
+                                           proto::ListEntitiesAlarmControlPanelResponse,
+                                           proto::ListEntitiesBinarySensorResponse,
+                                           proto::ListEntitiesButtonResponse,
+                                           proto::ListEntitiesCameraResponse,
+                                           proto::ListEntitiesClimateResponse,
+                                           proto::ListEntitiesCoverResponse,
+                                           proto::ListEntitiesDateResponse,
+                                           proto::ListEntitiesDateTimeResponse,
+                                           proto::ListEntitiesEventResponse,
+                                           proto::ListEntitiesFanResponse,
+                                           proto::ListEntitiesLightResponse,
+                                           proto::ListEntitiesLockResponse,
+                                           proto::ListEntitiesMediaPlayerResponse,
+                                           proto::ListEntitiesNumberResponse,
+                                           proto::ListEntitiesSelectResponse,
+                                           proto::ListEntitiesSensorResponse,
+                                           proto::ListEntitiesServicesResponse,
+                                           proto::ListEntitiesSwitchResponse,
+                                           proto::ListEntitiesTextResponse,
+                                           proto::ListEntitiesTextSensorResponse,
+                                           proto::ListEntitiesTimeResponse,
+                                           proto::ListEntitiesUpdateResponse,
+                                           proto::ListEntitiesValveResponse>(
+                              std::span{buffer.begin(), received_bytes}, [this](auto &&message) {
+                                  std::vector<boost::asio::any_completion_handler<void(MessageWrapper)>> handlers;
+                                  {
+                                      std::unique_lock l{handler_mtx_};
+                                      handlers = std::exchange(handlers_, {});
+                                  }
+                                  // todo: add small ring buffer if the handlers are empty or try to return the
+                                  // acceptance from the handler.
+                                  for (auto &&handler : handlers)
+                                  {
+                                      auto work = boost::asio::make_work_guard(handler);
+                                      auto alloc = boost::asio::get_associated_allocator(
+                                          handler, boost::asio::recycling_allocator<void>());
+
+                                      // Dispatch the completion handler through the handler's associated
+                                      // executor, using the handler's associated allocator.
+                                      boost::asio::dispatch(
+                                          work.get_executor(),
+                                          boost::asio::bind_allocator(
+                                              alloc, [handler = std::move(handler), result = message]() mutable {
+                                                  std::move(handler)(std::move(result));
+                                              }));
+                                  }
+                                  // std::println("Received message {}", message->GetTypeName());
+                              });
+    }
+    std::println("RECEIVE ENDED!");
 }
 } // namespace cppesphomeapi

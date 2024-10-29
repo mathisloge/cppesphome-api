@@ -1,8 +1,10 @@
 #include <print>
+#include <thread>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <cppesphomeapi/api_client.hpp>
 
 namespace asio = boost::asio;
@@ -17,6 +19,7 @@ namespace
 awaitable<void> client()
 {
     auto executor = co_await this_coro::executor;
+    std::println("client running on thread {}", std::this_thread::get_id());
     cppesphomeapi::ApiClient api_client{executor, "192.168.0.31"};
     const auto connect_response = co_await api_client.async_connect();
     if (not connect_response.has_value())
@@ -41,7 +44,8 @@ awaitable<void> client()
     }
 
     co_await api_client.async_light_command({.key = 1111582032, .effect = "Pulsate"});
-
+    asio::steady_timer timer{executor, std::chrono::seconds{100}};
+    co_await timer.async_wait();
     co_await api_client.async_disconnect();
 }
 
@@ -50,12 +54,18 @@ int main()
 {
     try
     {
-        asio::io_context io_context(1);
+        asio::io_context io_context(4);
 
         asio::signal_set signals(io_context, SIGINT, SIGTERM);
         signals.async_wait([&](auto, auto) { io_context.stop(); });
 
         co_spawn(io_context, client(), detached);
+
+        std::vector<std::jthread> io_threads;
+        for (int i = 0; i < 3; i++)
+        {
+            io_threads.emplace_back([&io_context]() { io_context.run(); });
+        }
         io_context.run();
     }
     catch (std::exception &e)
