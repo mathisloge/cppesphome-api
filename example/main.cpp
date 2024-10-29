@@ -4,6 +4,7 @@
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/signal_set.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <cppesphomeapi/api_client.hpp>
 
 namespace asio = boost::asio;
@@ -18,6 +19,7 @@ namespace
 awaitable<void> client()
 {
     auto executor = co_await this_coro::executor;
+    std::println("client running on thread {}", std::this_thread::get_id());
     cppesphomeapi::ApiClient api_client{executor, "192.168.0.31"};
     const auto connect_response = co_await api_client.async_connect();
     if (not connect_response.has_value())
@@ -42,7 +44,8 @@ awaitable<void> client()
     }
 
     co_await api_client.async_light_command({.key = 1111582032, .effect = "Pulsate"});
-
+    asio::steady_timer timer{executor, std::chrono::seconds{100}};
+    co_await timer.async_wait();
     co_await api_client.async_disconnect();
 }
 

@@ -77,26 +77,55 @@ class ApiConnection
         co_return make_unexpected_result(ApiErrorCode::UnexpectedMessage, "could not receive any message");
     }
 
-    template <typename TStopMsg, typename... TMsgs>
-    auto receive_messages() -> AsyncResult<std::vector<std::variant<TMsgs...>>>
+    template <typename TMsg>
+    static auto make_message_variant(auto &variant,
+                                     std::shared_ptr<google::protobuf::Message> message,
+                                     const std::uint32_t received_id)
     {
-        namespace asio = boost::asio;
-        std::vector<std::variant<TMsgs...>> messages;
-        std::array<std::uint8_t, 2048> buffer{};
+        if (received_id != TMsg::GetDescriptor()->options().GetExtension(proto::id))
+        {
+            return false;
+        }
+        auto real_message = std::dynamic_pointer_cast<TMsg>(message);
+        if (real_message == nullptr)
+        {
+            return false;
+        }
+        variant = std::move(real_message);
+        return true;
+    }
 
+    template <typename TStopMsg, typename... TMsgs>
+    auto receive_messages() -> AsyncResult<std::vector<std::variant<std::shared_ptr<TMsgs>...>>>
+    {
+        std::vector<std::variant<std::shared_ptr<TMsgs>...>> messages;
         // todo: add stop source
         bool do_receive{true};
+        const std::array<const google::protobuf::Descriptor *, sizeof...(TMsgs)> accepted_ids{
+            TMsgs::GetDescriptor()->options().GetExtension(proto::id)...};
+
         while (do_receive)
         {
-            const std::shared_ptr<google::protobuf::Message> message =
+            std::shared_ptr<google::protobuf::Message> message =
                 co_await async_receive_message(boost::asio::use_awaitable);
-            std::println("received a message", message->GetTypeName());
-            // std::visit(detail::overloaded{
-            //                [](std::monostate) { /* todo make error */ },
-            //                [&do_receive](TStopMsg /*stop_msg*/) { do_receive = false; },
-            //                [&messages](auto &&msg) { messages.emplace_back(std::forward<decltype(msg)>(msg)); },
-            //            },
-            //            std::move(message));
+            const auto received_id = message->GetDescriptor()->options().GetExtension(proto::id);
+            const auto accepted_msg =
+                std::any_of(accepted_ids.cbegin(), accepted_ids.cend(), [received_id](auto &&desc_id) {
+                    return desc_id->options().GetExtension(proto::id) == received_id;
+                });
+            if (not accepted_msg)
+            {
+                continue;
+            }
+            std::variant<std::monostate, std::shared_ptr<TMsgs>...> msg_variant;
+            const auto valid = (make_message_variant<TMsgs>(msg_variant, message, received_id) || ...);
+
+            std::visit(detail::overloaded{
+                           [](std::monostate) { /* todo make error */ },
+                           [&do_receive](std::shared_ptr<TStopMsg> /*stop_msg*/) { do_receive = false; },
+                           [&messages](auto &&msg) { messages.emplace_back(std::forward<decltype(msg)>(msg)); },
+                       },
+                       std::move(msg_variant));
         }
         co_return messages;
     }

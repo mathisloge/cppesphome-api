@@ -1,9 +1,8 @@
 #include "api_connection.hpp"
+#include <print>
 #include <boost/asio.hpp>
 #include "api.pb.h"
 #include "make_unexpected_result.hpp"
-
-#include <print>
 
 namespace asio = boost::asio;
 namespace this_coro = asio::this_coro;
@@ -139,7 +138,7 @@ AsyncResult<std::vector<EntityInfo>> ApiConnection::request_entities_and_service
 
     for (auto &&msg : messages.value())
     {
-        std::println("GOT LIST .{}", std::visit([](auto &&msg) { return msg.key(); }, msg));
+        std::println("GOT LIST .{}", std::visit([](auto &&msg) { return msg->key(); }, msg));
     }
     co_return std::vector<EntityInfo>{};
 }
@@ -158,7 +157,7 @@ AsyncResult<void> ApiConnection::light_command(LightCommand light_command)
 
 AsyncResult<void> ApiConnection::send_message(const google::protobuf::Message &message)
 {
-    const auto packet = plain_text_serialize(message);
+    const auto packet = PlainTextProtocol::serialize(message);
     if (packet.has_value())
     {
         const auto written = co_await socket_.async_write_some(asio::buffer(packet.value()));
@@ -188,13 +187,15 @@ const std::string &ApiConnection::device_name() const
 boost::asio::awaitable<void> ApiConnection::subscribe_logs()
 {
     proto::SubscribeLogsRequest request;
+    request.set_dump_config(true);
+    request.set_level(::cppesphomeapi::proto::LogLevel::LOG_LEVEL_VERY_VERBOSE);
     co_await send_message(request);
     while (true)
     {
         auto response = co_await receive_message<proto::SubscribeLogsResponse>();
         if (response.has_value())
         {
-            std::println("GOt log message {}", response.value()->message());
+            std::println("Got log message {}", response.value()->message());
         }
     }
 }
@@ -247,6 +248,7 @@ boost::asio::awaitable<void> ApiConnection::async_receive()
                                       std::unique_lock l{handler_mtx_};
                                       handlers = std::exchange(handlers_, {});
                                   }
+                                  std::println("Received message {}", message->GetTypeName());
                                   for (auto &&handler : handlers)
                                   {
                                       auto work = boost::asio::make_work_guard(handler);
@@ -264,5 +266,6 @@ boost::asio::awaitable<void> ApiConnection::async_receive()
                                   }
                               });
     }
+    std::println("RECEIVE ENDED!");
 }
 } // namespace cppesphomeapi

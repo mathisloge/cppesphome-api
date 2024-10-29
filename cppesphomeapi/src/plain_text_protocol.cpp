@@ -7,58 +7,7 @@
 
 namespace cppesphomeapi
 {
-Result<void> plain_text_decode(std::span<const std::uint8_t> received_data, ::google::protobuf::Message &message)
-{
-    if (received_data.size() < 3)
-    {
-        return make_unexpected_result(ApiErrorCode::ParseError,
-                                      "response does not contain enough bytes for the header");
-    }
-    google::protobuf::io::CodedInputStream stream{received_data.data(), static_cast<int>(received_data.size())};
-    std::uint32_t preamble{};
-    if (not stream.ReadVarint32(&preamble) or preamble != 0x00)
-    {
-        return make_unexpected_result(ApiErrorCode::ParseError, "response does contain an invalid preamble");
-    }
-
-    std::uint32_t message_size{};
-    if (not stream.ReadVarint32(&message_size))
-    {
-        return make_unexpected_result(ApiErrorCode::ParseError, "got no message size");
-    }
-
-    std::uint32_t message_type{};
-    if (not stream.ReadVarint32(&message_type))
-    {
-        return make_unexpected_result(ApiErrorCode::ParseError, "got no message type");
-    }
-
-    const auto expected_message_id = message.GetDescriptor()->options().GetExtension(proto::id);
-    if (expected_message_id != message_type)
-    {
-        return make_unexpected_result(
-            ApiErrorCode::UnexpectedMessage,
-            std::format("Expected {} but got message id {}", message.GetDescriptor()->name(), message_type));
-    }
-    if (stream.BytesUntilLimit() != message_size)
-    {
-        return make_unexpected_result(
-            ApiErrorCode::ParseError,
-            std::format("Received message size does not match the remaining bytes. Expected {} bytes got {} bytes.",
-                        message_size,
-                        stream.BytesUntilLimit()));
-    }
-    const bool parsed = message.ParseFromCodedStream(std::addressof(stream));
-    if (not parsed)
-    {
-        return make_unexpected_result(
-            ApiErrorCode::ParseError,
-            std::format("Could not parse message \"{}\" from bytes.", message.GetDescriptor()->name()));
-    }
-    return {};
-}
-
-Result<std::vector<std::uint8_t>> plain_text_serialize(const ::google::protobuf::Message &message)
+Result<std::vector<std::uint8_t>> PlainTextProtocol::serialize(const ::google::protobuf::Message &message)
 {
     constexpr std::uint8_t kPlainTextPreamble = 0x00;
     auto &&msg_options = message.GetDescriptor()->options();
