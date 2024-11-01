@@ -68,7 +68,8 @@ int main()
 {
     try
     {
-        asio::io_context io_context(5);
+        asio::io_context io_context(4);
+        std::stop_source stop_source;
 
         asio::signal_set signals(io_context, SIGINT, SIGTERM);
         signals.async_wait([&](auto, auto) { io_context.stop(); });

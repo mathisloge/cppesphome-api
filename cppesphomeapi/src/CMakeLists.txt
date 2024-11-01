@@ -3,4 +3,6 @@ target_sources(cppesphomeapi PRIVATE
     make_unexpected_result.cpp
     plain_text_protocol.cpp
     api_connection.cpp
+    entity_conversion.cpp
+    entity_conversion.hpp
 )

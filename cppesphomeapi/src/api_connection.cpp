@@ -2,6 +2,7 @@
 #include <print>
 #include <boost/asio.hpp>
 #include "api.pb.h"
+#include "entity_conversion.hpp"
 #include "make_unexpected_result.hpp"
 #include "plain_text_protocol.hpp"
 
@@ -138,7 +139,15 @@ AsyncResult<std::vector<EntityInfo>> ApiConnection::request_entities_and_service
 
     for (auto &&msg : messages.value())
     {
-        std::println("GOT LIST .{}", std::visit([](auto &&msg) { return msg->key(); }, msg));
+        std::println("GOT LIST .{}",
+                     std::visit(detail::overloaded{[](const std::shared_ptr<proto::ListEntitiesLightResponse> &msg) {
+                                                       for (auto &&e : msg->effects())
+                                                       {
+                                                           msg->key();
+                                                       }
+                                                   },
+                                                   [](auto &&msg) { return msg->key(); }},
+                                msg));
     }
     co_return std::vector<EntityInfo>{};
 }
