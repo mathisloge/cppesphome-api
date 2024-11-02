@@ -57,6 +57,13 @@ awaitable<void> client()
     {
         std::println("couldn't get list {}", list.error().message);
     }
+    else
+    {
+        for (auto &&entity : list.value())
+        {
+            std::visit([](auto &&msg) { std::println("Got entity {}", msg.name); }, entity);
+        }
+    }
     co_await api_client.async_light_command({.key = 1111582032, .effect = "Pulsate"});
     asio::steady_timer timer{executor, std::chrono::seconds{100}};
     co_await timer.async_wait();
@@ -68,7 +75,7 @@ int main()
 {
     try
     {
-        asio::io_context io_context(4);
+        asio::io_context io_context(1);
         std::stop_source stop_source;
 
         asio::signal_set signals(io_context, SIGINT, SIGTERM);
@@ -77,10 +84,10 @@ int main()
         co_spawn(io_context, client(), detached);
 
         std::vector<std::jthread> io_threads;
-        for (int i = 0; i < 3; i++)
-        {
-            io_threads.emplace_back([&io_context]() { io_context.run(); });
-        }
+        // for (int i = 0; i < 3; i++)
+        //{
+        //     io_threads.emplace_back([&io_context]() { io_context.run(); });
+        // }
         io_context.run();
     }
     catch (std::exception &e)

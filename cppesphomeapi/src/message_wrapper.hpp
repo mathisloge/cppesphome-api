@@ -36,6 +36,11 @@ class MessageWrapper
         return detail::get_message_id<TMsg>() == message_id_;
     }
 
+    const google::protobuf::Message &ref() const
+    {
+        return *message_;
+    }
+
   private:
     std::uint32_t message_id_{};
     std::shared_ptr<google::protobuf::Message> message_;

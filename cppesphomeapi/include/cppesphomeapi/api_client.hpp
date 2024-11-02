@@ -15,6 +15,9 @@ namespace cppesphomeapi
 {
 class ApiConnection;
 
+using EntityInfoVariant = std::variant<EntityInfo, LightEntityInfo>;
+using EntityInfoList = std::vector<EntityInfoVariant>;
+
 class CPPESPHOMEAPI_EXPORT ApiClient
 {
   public:
@@ -29,7 +32,7 @@ class CPPESPHOMEAPI_EXPORT ApiClient
     AsyncResult<void> async_connect();
     AsyncResult<void> async_disconnect();
     AsyncResult<DeviceInfo> async_device_info();
-    AsyncResult<std::vector<EntityInfo>> async_list_entities_services();
+    AsyncResult<EntityInfoList> async_list_entities_services();
     AsyncResult<void> async_light_command(LightCommand light_command);
     AsyncResult<void> enable_logs(EspHomeLogLevel log_level, bool config_dump);
     AsyncResult<LogEntry> receive_log();

@@ -26,7 +26,7 @@ AsyncResult<DeviceInfo> ApiClient::async_device_info()
     co_return co_await connection_->request_device_info();
 }
 
-AsyncResult<std::vector<EntityInfo>> ApiClient::async_list_entities_services()
+AsyncResult<EntityInfoList> ApiClient::async_list_entities_services()
 {
     co_return co_await connection_->request_entities_and_services();
 }

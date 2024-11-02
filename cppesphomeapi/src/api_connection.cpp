@@ -41,6 +41,7 @@ AsyncResult<void> ApiConnection::connect()
     socket_.set_option(asio::socket_base::keep_alive{true});
 
     asio::co_spawn(strand_, std::bind(&ApiConnection::async_receive, this), asio::detached);
+    spawn_heartbeat();
 
     REQUIRE_SUCCESS(co_await send_message_hello());
     REQUIRE_SUCCESS(co_await send_message_connect());
@@ -106,7 +107,7 @@ AsyncResult<DeviceInfo> ApiConnection::request_device_info()
     };
 }
 
-AsyncResult<std::vector<EntityInfo>> ApiConnection::request_entities_and_services()
+AsyncResult<EntityInfoList> ApiConnection::request_entities_and_services()
 {
     proto::ListEntitiesRequest request;
     auto message_receiver = receive_messages<proto::ListEntitiesDoneResponse,
@@ -137,19 +138,13 @@ AsyncResult<std::vector<EntityInfo>> ApiConnection::request_entities_and_service
     auto messages = co_await std::move(message_receiver);
     REQUIRE_SUCCESS(messages);
 
-    for (auto &&msg : messages.value())
-    {
-        std::println("GOT LIST .{}",
-                     std::visit(detail::overloaded{[](const std::shared_ptr<proto::ListEntitiesLightResponse> &msg) {
-                                                       for (auto &&e : msg->effects())
-                                                       {
-                                                           msg->key();
-                                                       }
-                                                   },
-                                                   [](auto &&msg) { return msg->key(); }},
-                                msg));
-    }
-    co_return std::vector<EntityInfo>{};
+    EntityInfoList list;
+    list.reserve(messages->size());
+
+    std::ranges::transform(messages.value(), std::back_inserter(list), [](auto &&msg) {
+        return std::visit([](auto &&msg) { return EntityInfoVariant{pb2entity_info(*msg)}; }, msg);
+    });
+    co_return list;
 }
 
 AsyncResult<void> ApiConnection::light_command(LightCommand light_command)
@@ -169,6 +164,7 @@ AsyncResult<void> ApiConnection::send_message(const google::protobuf::Message &m
     const auto packet = PlainTextProtocol::serialize(message);
     if (packet.has_value())
     {
+        std::println("Sending {}", message.GetTypeName());
         const auto written = co_await socket_.async_write_some(asio::buffer(packet.value()));
         if (written != packet->size())
         {
@@ -214,7 +210,7 @@ AsyncResult<LogEntry> ApiConnection::receive_log()
 boost::asio::awaitable<void> ApiConnection::async_receive()
 {
     namespace asio = boost::asio;
-    std::array<std::uint8_t, 2048> buffer{};
+    std::array<std::uint8_t, 4096> buffer{};
     bool do_receive{true};
 
     while (do_receive)
@@ -225,6 +221,7 @@ boost::asio::awaitable<void> ApiConnection::async_receive()
                                            proto::DeviceInfoResponse,
                                            proto::ConnectResponse,
                                            proto::HelloResponse,
+                                           proto::PingResponse,
                                            proto::DisconnectResponse,
                                            proto::ListEntitiesDoneResponse,
                                            proto::ListEntitiesAlarmControlPanelResponse,
@@ -273,9 +270,32 @@ boost::asio::awaitable<void> ApiConnection::async_receive()
                                                   std::move(handler)(std::move(result));
                                               }));
                                   }
-                                  // std::println("Received message {}", message->GetTypeName());
+                                  std::println("Received message {}", message.ref().GetTypeName());
                               });
     }
     std::println("RECEIVE ENDED!");
 }
+
+void ApiConnection::spawn_heartbeat()
+{
+    asio::co_spawn(strand_, std::bind(&ApiConnection::heartbeat_loop, this), asio::detached);
+}
+
+boost::asio::awaitable<void> ApiConnection::heartbeat_loop()
+{
+    auto executor = co_await this_coro::executor;
+    asio::steady_timer timer{executor};
+
+    while (true)
+    {
+        timer.expires_after(std::chrono::seconds{20});
+        co_await timer.async_wait();
+        proto::PingRequest request;
+        co_await send_message(request);
+        // todo: this should be in a different coroutine and only expect a response at the minimum of 20sec*4.5
+        // otherwise the connection is dead.
+        co_await receive_message<proto::PingResponse>(asio::use_awaitable);
+    }
+}
+
 } // namespace cppesphomeapi

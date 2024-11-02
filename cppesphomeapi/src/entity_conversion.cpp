@@ -43,6 +43,47 @@ EntityInfo pb2entity_info_base(const EntityAlikeMessage auto &entity)
     };
 }
 
+EntityInfo pb2entity_info(const proto::ListEntitiesAlarmControlPanelResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesBinarySensorResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesButtonResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesCameraResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesClimateResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesCoverResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesDateResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesDateTimeResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesEventResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesFanResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+
 LightEntityInfo pb2entity_info(const proto::ListEntitiesLightResponse &light_response)
 {
     LightEntityInfo entity{
@@ -90,4 +131,53 @@ LightEntityInfo pb2entity_info(const proto::ListEntitiesLightResponse &light_res
 
     return entity;
 }
+EntityInfo pb2entity_info(const proto::ListEntitiesLockResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesMediaPlayerResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesNumberResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesSelectResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesSensorResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesServicesResponse & /*response*/)
+{
+    return {};
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesSwitchResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesTextResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesTextSensorResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesTimeResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesUpdateResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+EntityInfo pb2entity_info(const proto::ListEntitiesValveResponse &response)
+{
+    return pb2entity_info_base(response);
+}
+
 } // namespace cppesphomeapi

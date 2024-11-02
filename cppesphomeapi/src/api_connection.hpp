@@ -32,7 +32,7 @@ class ApiConnection
     AsyncResult<void> send_message_hello();
     AsyncResult<void> send_message_connect();
     AsyncResult<DeviceInfo> request_device_info();
-    AsyncResult<std::vector<EntityInfo>> request_entities_and_services();
+    AsyncResult<EntityInfoList> request_entities_and_services();
     AsyncResult<void> light_command(LightCommand light_command);
     const std::optional<ApiVersion> &api_version() const;
     const std::string &device_name() const;
@@ -115,6 +115,8 @@ class ApiConnection
 
   private:
     boost::asio::awaitable<void> async_receive();
+    void spawn_heartbeat();
+    boost::asio::awaitable<void> heartbeat_loop();
 
   private:
     std::string hostname_;
