@@ -81,11 +81,9 @@ awaitable<void> client()
         }
     }
     co_await api_client.async_light_command({.key = 1111582032, .effect = "Pulsate"});
-    asio::steady_timer timer{executor, std::chrono::seconds{100}};
+    asio::steady_timer timer{executor, std::chrono::seconds{10}};
     co_await timer.async_wait();
     co_await api_client.async_disconnect();
-
-    api_client.close();
 }
 
 } // namespace
@@ -93,18 +91,23 @@ int main()
 {
     try
     {
-        asio::io_context io_context(4);
+        asio::io_context io_context(1);
 
         asio::signal_set signals(io_context, SIGINT, SIGTERM);
         signals.async_wait([&](auto, auto) { io_context.stop(); });
 
         co_spawn(io_context, client(), detached);
 
-        std::vector<std::jthread> io_threads;
-        for (int i = 0; i < 3; i++)
-        {
-            io_threads.emplace_back([&io_context]() { io_context.run(); });
-        }
+        std::jthread quit_thread{[&]() {
+            std::this_thread::sleep_for(std::chrono::seconds{15});
+            std::println("stopping");
+            io_context.stop();
+        }};
+        // std::vector<std::jthread> io_threads;
+        // for (int i = 0; i < 3; i++)
+        // {
+        //     io_threads.emplace_back([&io_context]() { io_context.run(); });
+        // }
         io_context.run();
     }
     catch (std::exception &e)

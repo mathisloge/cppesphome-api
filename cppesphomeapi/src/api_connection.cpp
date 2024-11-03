@@ -346,8 +346,8 @@ boost::asio::awaitable<void> ApiConnection::heartbeat_loop()
 {
     auto executor = co_await this_coro::executor;
     asio::steady_timer timer{executor};
-
-    while (true)
+    const auto watch_dog = executor::abort(timer);
+    while (not executor::stopAssetOf(executor).stop_requested())
     {
         timer.expires_after(std::chrono::seconds{20});
         co_await timer.async_wait();
@@ -357,7 +357,6 @@ boost::asio::awaitable<void> ApiConnection::heartbeat_loop()
         // otherwise the connection is dead.
         co_await receive_message<proto::PingResponse>(asio::use_awaitable);
     }
-    executor::stopAssetOf(executor).request_stop();
 }
 
 } // namespace cppesphomeapi
