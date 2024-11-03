@@ -30,7 +30,8 @@ ApiConnection::ApiConnection(std::string hostname,
     : hostname_{std::move(hostname)}
     , port_{port}
     , password_{std::move(password)}
-    , socket_{executor}
+    , strand_{asio::make_strand(executor)}
+    , socket_{strand_}
 {
     executor::addStopService(executor::getContext(executor), stop_source);
 }
@@ -56,7 +57,7 @@ AsyncResult<void> ApiConnection::connect()
     }
 
     timer.expires_after(std::chrono::milliseconds{500});
-    auto connect_result = co_await net::connectTo(*endpoints, timer);
+    auto connect_result = co_await net::connectTo(socket_, *endpoints, timer);
     if (not connect_result.has_value())
     {
         co_return make_unexpected_result(ApiErrorCode::UnexpectedMessage,
@@ -65,8 +66,10 @@ AsyncResult<void> ApiConnection::connect()
                                                      port_,
                                                      endpoints.error().message()));
     }
-
-    socket_ = std::move(*connect_result);
+    else
+    {
+        std::println("Connected to {}", connect_result->address().to_string());
+    }
 
     executor::commission(socket_.get_executor(), &ApiConnection::receive_loop, this);
     executor::commission(socket_.get_executor(), &ApiConnection::heartbeat_loop, this);
@@ -246,6 +249,21 @@ AsyncResult<LogEntry> ApiConnection::receive_log()
     };
 }
 
+AsyncResult<void> ApiConnection::subscribe_states()
+{
+    proto::SubscribeStatesRequest request;
+    co_return co_await send_message(request);
+}
+
+AsyncResult<void> ApiConnection::receive_state()
+{
+    const auto message = co_await receive_message<proto::LightStateResponse>(asio::use_awaitable);
+    REQUIRE_SUCCESS(message);
+    auto &&value = message.value();
+    std::println("Light state: state={}, effect={}", value->state(), value->effect());
+    co_return Result<void>();
+}
+
 boost::asio::awaitable<void> ApiConnection::receive_loop()
 {
     std::array<std::byte, 4096> buffer{};
@@ -293,7 +311,8 @@ boost::asio::awaitable<void> ApiConnection::receive_loop()
                                            proto::ListEntitiesTextSensorResponse,
                                            proto::ListEntitiesTimeResponse,
                                            proto::ListEntitiesUpdateResponse,
-                                           proto::ListEntitiesValveResponse>(
+                                           proto::ListEntitiesValveResponse,
+                                           proto::LightStateResponse>(
                               std::span{buffer.cbegin(), received_bytes.value()}, [this](auto &&message) {
                                   std::vector<boost::asio::any_completion_handler<void(MessageWrapper)>> handlers;
                                   {

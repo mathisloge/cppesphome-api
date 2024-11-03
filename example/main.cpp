@@ -41,7 +41,7 @@ awaitable<void> client()
         [&api_client]() -> asio::awaitable<void> {
             while (true)
             {
-                auto log_message = co_await api_client.receive_log();
+                auto log_message = co_await api_client.async_receive_log();
                 if (log_message.has_value())
                 {
                     std::println("ESPHOME_LOG: {}", log_message->message);
@@ -49,7 +49,21 @@ awaitable<void> client()
             }
         },
         detached);
-    co_await api_client.enable_logs(cppesphomeapi::EspHomeLogLevel::VeryVerbose, true);
+    co_spawn(
+        executor,
+        [&api_client]() -> asio::awaitable<void> {
+            while (true)
+            {
+                auto state_message = co_await api_client.async_receive_state();
+                if (state_message.has_value())
+                {
+                    std::println("ESPHOME_STATE: {}", "");
+                }
+            }
+        },
+        detached);
+    co_await api_client.subscribe_logs(cppesphomeapi::EspHomeLogLevel::VeryVerbose, true);
+    co_await api_client.subscribe_states();
 
     const auto device_info = co_await api_client.async_device_info();
     std::println("Hello dev info: {}, compile_time {}", device_info->name, device_info->compilation_time);
@@ -79,8 +93,7 @@ int main()
 {
     try
     {
-        asio::io_context io_context(1);
-        std::stop_source stop_source;
+        asio::io_context io_context(4);
 
         asio::signal_set signals(io_context, SIGINT, SIGTERM);
         signals.async_wait([&](auto, auto) { io_context.stop(); });
@@ -88,10 +101,10 @@ int main()
         co_spawn(io_context, client(), detached);
 
         std::vector<std::jthread> io_threads;
-        // for (int i = 0; i < 3; i++)
-        //{
-        //     io_threads.emplace_back([&io_context]() { io_context.run(); });
-        // }
+        for (int i = 0; i < 3; i++)
+        {
+            io_threads.emplace_back([&io_context]() { io_context.run(); });
+        }
         io_context.run();
     }
     catch (std::exception &e)

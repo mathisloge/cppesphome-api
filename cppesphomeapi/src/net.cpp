@@ -25,10 +25,9 @@ auto receiveFrom(Socket &socket, Timer &timer, ByteSpan byte_buffer) -> asio::aw
 }
 
 // precondition: not Endpoints.empty()
-auto connectTo(Endpoints endpoints, Timer &timer) -> asio::awaitable<ExpectSocket>
+auto connectTo(Socket &socket, Endpoints endpoints, Timer &timer) -> asio::awaitable<ExpectConnection>
 {
-    Socket socket(timer.get_executor());
-    co_return replace(flatten(co_await (async_connect(socket, endpoints) || timer.async_wait())), std::move(socket));
+    co_return flatten(co_await (async_connect(socket, endpoints) || timer.async_wait()));
 }
 
 auto expired(Timer &timer) noexcept -> asio::awaitable<bool>

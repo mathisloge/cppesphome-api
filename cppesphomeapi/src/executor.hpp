@@ -11,6 +11,8 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/is_executor.hpp>
 
+#include <print>
+
 namespace cppesphomeapi::executor
 {
 namespace asio = boost::asio;
@@ -76,6 +78,10 @@ void addStopService(asio::execution_context &Executor, std::stop_source &Stop)
 
 std::stop_source getStop(asio::execution_context &Context)
 {
+    if (not asio::has_service<StopService>(Context))
+    {
+        std::println("Context does not have a stop service :/");
+    }
     return asio::use_service<StopService>(Context).get();
 }
 

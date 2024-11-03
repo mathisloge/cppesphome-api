@@ -36,8 +36,10 @@ class CPPESPHOMEAPI_EXPORT ApiClient
     AsyncResult<DeviceInfo> async_device_info();
     AsyncResult<EntityInfoList> async_list_entities_services();
     AsyncResult<void> async_light_command(LightCommand light_command);
-    AsyncResult<void> enable_logs(EspHomeLogLevel log_level, bool config_dump);
-    AsyncResult<LogEntry> receive_log();
+    AsyncResult<LogEntry> async_receive_log();
+    AsyncResult<void> async_receive_state();
+    AsyncResult<void> subscribe_logs(EspHomeLogLevel log_level, bool config_dump);
+    AsyncResult<void> subscribe_states();
     void close();
 
     ApiClient(const ApiClient &) = delete;

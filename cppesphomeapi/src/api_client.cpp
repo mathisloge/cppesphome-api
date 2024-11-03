@@ -38,14 +38,24 @@ AsyncResult<void> ApiClient::async_light_command(LightCommand light_command)
     co_return co_await connection_->light_command(std::move(light_command));
 }
 
-AsyncResult<void> ApiClient::enable_logs(EspHomeLogLevel log_level, bool config_dump)
+AsyncResult<void> ApiClient::subscribe_logs(EspHomeLogLevel log_level, bool config_dump)
 {
     co_return co_await connection_->enable_logs(log_level, config_dump);
 }
 
-AsyncResult<LogEntry> ApiClient::receive_log()
+AsyncResult<LogEntry> ApiClient::async_receive_log()
 {
     co_return co_await connection_->receive_log();
+}
+
+AsyncResult<void> ApiClient::subscribe_states()
+{
+    co_return co_await connection_->subscribe_states();
+}
+
+AsyncResult<void> ApiClient::async_receive_state()
+{
+    co_return co_await connection_->receive_state();
 }
 
 std::optional<ApiVersion> ApiClient::api_version() const

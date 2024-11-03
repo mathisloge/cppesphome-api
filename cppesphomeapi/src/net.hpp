@@ -31,7 +31,7 @@ enum Port : uint16_t
 template <typename T>
 using Expected = std::expected<T, ErrorCode>;
 using ExpectSize = Expected<std::size_t>;
-using ExpectSocket = Expected<Socket>;
+using ExpectConnection = Expected<Endpoint>;
 
 template <std::size_t N>
 using SendBuffers = std::array<asio::const_buffer, N>;
@@ -41,7 +41,7 @@ using ConstByteSpan = std::span<const std::byte>;
 
 auto sendTo(Socket &socket, Timer &timer, ConstByteSpan data) -> asio::awaitable<ExpectSize>;
 auto receiveFrom(Socket &socket, Timer &timer, ByteSpan byte_buffer) -> asio::awaitable<ExpectSize>;
-auto connectTo(Endpoints endpoints, Timer &timer) -> asio::awaitable<ExpectSocket>;
+auto connectTo(Socket &socket, Endpoints endpoints, Timer &timer) -> asio::awaitable<ExpectConnection>;
 auto expired(Timer &timer) noexcept -> asio::awaitable<bool>;
 
 void close(Socket &socket) noexcept;

@@ -41,6 +41,8 @@ class ApiConnection
     const std::string &device_name() const;
     AsyncResult<void> enable_logs(EspHomeLogLevel log_level, bool config_dump);
     AsyncResult<LogEntry> receive_log();
+    AsyncResult<void> subscribe_states();
+    AsyncResult<void> receive_state();
 
     void cancel();
 
@@ -136,6 +138,7 @@ class ApiConnection
     std::string hostname_;
     std::uint16_t port_;
     std::string password_;
+    boost::asio::strand<boost::asio::any_io_executor> strand_;
     net::Socket socket_;
 
     std::string device_name_;
