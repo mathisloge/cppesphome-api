@@ -3,10 +3,12 @@
 namespace cppesphomeapi
 {
 ApiClient::ApiClient(const boost::asio::any_io_executor &executor,
+                     std::stop_source &stop_source,
                      std::string hostname,
                      std::uint16_t port,
                      std::string password)
-    : connection_{std::make_unique<ApiConnection>(std::move(hostname), port, std::move(password), executor)}
+    : connection_{
+          std::make_unique<ApiConnection>(std::move(hostname), port, std::move(password), stop_source, executor)}
 {}
 
 ApiClient::~ApiClient() = default;
@@ -54,6 +56,11 @@ std::optional<ApiVersion> ApiClient::api_version() const
 const std::string &ApiClient::device_name() const
 {
     return connection_->device_name();
+}
+
+void ApiClient::close()
+{
+    connection_->cancel();
 }
 
 } // namespace cppesphomeapi

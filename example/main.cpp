@@ -18,13 +18,14 @@ namespace
 {
 awaitable<void> client()
 {
+    std::stop_source stop_source;
     auto executor = co_await this_coro::executor;
     std::println("client running on thread {}", std::this_thread::get_id());
-    cppesphomeapi::ApiClient api_client{executor, "192.168.0.31"};
+    cppesphomeapi::ApiClient api_client{executor, stop_source, "192.168.0.31"};
     const auto connect_response = co_await api_client.async_connect();
     if (not connect_response.has_value())
     {
-        std::println("Could not connect to client.");
+        std::println("Could not connect to client. {}", connect_response.error().message);
         co_return;
     }
     else
@@ -34,6 +35,7 @@ awaitable<void> client()
                      api_client.api_version()->major,
                      api_client.api_version()->minor);
     }
+
     co_spawn(
         executor,
         [&api_client]() -> asio::awaitable<void> {
@@ -68,6 +70,8 @@ awaitable<void> client()
     asio::steady_timer timer{executor, std::chrono::seconds{100}};
     co_await timer.async_wait();
     co_await api_client.async_disconnect();
+
+    api_client.close();
 }
 
 } // namespace

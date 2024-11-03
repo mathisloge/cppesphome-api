@@ -1,8 +1,10 @@
 #pragma once
 #include <cstdint>
+#include <stop_token>
 #include <string>
 #include <boost/asio/any_completion_handler.hpp>
 #include <boost/asio/executor.hpp>
+#include <boost/asio/experimental/awaitable_operators.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/asio/use_awaitable.hpp>
 #include <google/protobuf/message.h>
@@ -14,8 +16,8 @@
 #include "cppesphomeapi/device_info.hpp"
 #include "make_unexpected_result.hpp"
 #include "message_wrapper.hpp"
+#include "net.hpp"
 #include "overloaded.hpp"
-#include "tcp.hpp"
 
 namespace cppesphomeapi
 {
@@ -25,6 +27,7 @@ class ApiConnection
     explicit ApiConnection(std::string hostname,
                            std::uint16_t port,
                            std::string password,
+                           std::stop_source &stop_source,
                            const boost::asio::any_io_executor &executor);
 
     AsyncResult<void> connect();
@@ -39,6 +42,8 @@ class ApiConnection
     AsyncResult<void> enable_logs(EspHomeLogLevel log_level, bool config_dump);
     AsyncResult<LogEntry> receive_log();
 
+    void cancel();
+
   private:
     AsyncResult<void> send_message(const google::protobuf::Message &message);
 
@@ -49,19 +54,29 @@ class ApiConnection
             std::unique_lock l{handler_mtx_};
             handlers_.emplace_back(std::move(handler));
         };
-        return boost::asio::async_initiate<CompletionToken, void(MessageWrapper)>(
-            init, // First, pass the function object that launches the operation,
-            token // then the completion token that will be transformed to a handler,
-        );        // and, finally, any additional arguments to the function object.
+        return boost::asio::async_initiate<CompletionToken, void(MessageWrapper)>(init, token);
     }
 
     template <typename TMsg>
     auto receive_message(auto &&completion_token) -> AsyncResult<std::shared_ptr<TMsg>>
     {
+        namespace aex = boost::asio::experimental;
+        using aex::awaitable_operators::operator||;
+        auto executor = co_await boost::asio::this_coro::executor;
+        net::Timer timer{executor};
+        timer.expires_after(std::chrono::milliseconds{250});
         while (true)
         {
-            const auto received_message =
-                co_await async_receive_message(std::forward<decltype(completion_token)>(completion_token));
+            //! TODO: the added handler might get aborted. How to remove it from the vector holding the completion
+            //! handlers?
+            const auto received_message_or_error =
+                co_await (async_receive_message(std::forward<decltype(completion_token)>(completion_token)) ||
+                          timer.async_wait());
+            if (std::holds_alternative<std::tuple<net::ErrorCode>>(received_message_or_error))
+            {
+                break;
+            }
+            auto &&received_message = std::get<cppesphomeapi::MessageWrapper>(received_message_or_error);
             if (received_message.template holds_message<TMsg>())
             {
                 co_return received_message.template as<TMsg>();
@@ -114,16 +129,14 @@ class ApiConnection
     }
 
   private:
-    boost::asio::awaitable<void> async_receive();
-    void spawn_heartbeat();
+    boost::asio::awaitable<void> receive_loop();
     boost::asio::awaitable<void> heartbeat_loop();
 
   private:
     std::string hostname_;
     std::uint16_t port_;
     std::string password_;
-    boost::asio::strand<boost::asio::any_io_executor> strand_;
-    tcp::socket socket_;
+    net::Socket socket_;
 
     std::string device_name_;
     std::optional<ApiVersion> api_version_;

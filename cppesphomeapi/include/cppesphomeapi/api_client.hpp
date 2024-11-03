@@ -2,6 +2,7 @@
 #define CPPESPHOMEAPI_API_CLIENT_HPP
 #include <cstdint>
 #include <memory>
+#include <stop_token>
 #include <string>
 #include <cppesphomeapi/cppesphomeapi_export.hpp>
 #include "api_version.hpp"
@@ -22,6 +23,7 @@ class CPPESPHOMEAPI_EXPORT ApiClient
 {
   public:
     explicit ApiClient(const boost::asio::any_io_executor &executor,
+                       std::stop_source &stop_source,
                        std::string hostname,
                        std::uint16_t port = 6053,
                        std::string password = "");
@@ -36,6 +38,7 @@ class CPPESPHOMEAPI_EXPORT ApiClient
     AsyncResult<void> async_light_command(LightCommand light_command);
     AsyncResult<void> enable_logs(EspHomeLogLevel log_level, bool config_dump);
     AsyncResult<LogEntry> receive_log();
+    void close();
 
     ApiClient(const ApiClient &) = delete;
     ApiClient(ApiClient &&) = delete;

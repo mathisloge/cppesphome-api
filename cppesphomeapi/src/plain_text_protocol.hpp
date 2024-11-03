@@ -13,7 +13,7 @@ namespace cppesphomeapi
 
 struct PlainTextProtocol
 {
-    static Result<std::vector<std::uint8_t>> serialize(const ::google::protobuf::Message &message);
+    static Result<std::vector<std::byte>> serialize(const ::google::protobuf::Message &message);
 
     template <typename TMsg>
     auto parse_and_invoke(google::protobuf::io::CodedInputStream *stream,
@@ -36,7 +36,7 @@ struct PlainTextProtocol
     }
 
     template <typename... TMsgs>
-    auto decode_multiple(std::span<const std::uint8_t> received_data, auto &&message_handler) -> Result<void>
+    auto decode_multiple(std::span<const std::byte> received_data, auto &&message_handler) -> Result<void>
     {
         if (received_data.size() < 3)
         {
@@ -44,7 +44,8 @@ struct PlainTextProtocol
                                           "response does not contain enough bytes for the header");
         }
 
-        google::protobuf::io::CodedInputStream stream{received_data.data(), static_cast<int>(received_data.size())};
+        google::protobuf::io::CodedInputStream stream{reinterpret_cast<const std::uint8_t *>(received_data.data()),
+                                                      static_cast<int>(received_data.size())};
         while (stream.BytesUntilLimit() > 0)
         {
             std::uint32_t preamble{};

@@ -3,7 +3,9 @@
 #include <boost/asio.hpp>
 #include "api.pb.h"
 #include "entity_conversion.hpp"
+#include "executor.hpp"
 #include "make_unexpected_result.hpp"
+#include "net.hpp"
 #include "plain_text_protocol.hpp"
 
 namespace asio = boost::asio;
@@ -23,25 +25,51 @@ namespace cppesphomeapi
 ApiConnection::ApiConnection(std::string hostname,
                              std::uint16_t port,
                              std::string password,
+                             std::stop_source &stop_source,
                              const asio::any_io_executor &executor)
     : hostname_{std::move(hostname)}
     , port_{port}
     , password_{std::move(password)}
-    , strand_{asio::make_strand(executor)}
-    , socket_{strand_}
-{}
+    , socket_{executor}
+{
+    executor::addStopService(executor::getContext(executor), stop_source);
+}
+
+void ApiConnection::cancel()
+{
+    executor::stopAssetOf(executor::getContext(socket_.get_executor())).request_stop();
+}
 
 AsyncResult<void> ApiConnection::connect()
 {
     auto executor = co_await this_coro::executor;
-    tcp::resolver resolver{executor};
-    const auto resolved = co_await resolver.async_resolve(hostname_, std::to_string(port_));
+    net::Timer timer{executor};
+    timer.expires_after(std::chrono::milliseconds{500});
 
-    co_await socket_.async_connect(resolved->endpoint());
-    socket_.set_option(asio::socket_base::keep_alive{true});
+    auto endpoints = co_await net::resolveHostEndpoints(hostname_, net::Port{port_}, timer);
+    if (not endpoints.has_value())
+    {
+        co_return make_unexpected_result(
+            ApiErrorCode::UnexpectedMessage,
+            std::format(
+                "Could not resolve host {}:{}. Failed with error: {}", hostname_, port_, endpoints.error().message()));
+    }
 
-    asio::co_spawn(strand_, std::bind(&ApiConnection::async_receive, this), asio::detached);
-    spawn_heartbeat();
+    timer.expires_after(std::chrono::milliseconds{500});
+    auto connect_result = co_await net::connectTo(*endpoints, timer);
+    if (not connect_result.has_value())
+    {
+        co_return make_unexpected_result(ApiErrorCode::UnexpectedMessage,
+                                         std::format("Could not connect to host {}:{}. Failed with error: {}",
+                                                     hostname_,
+                                                     port_,
+                                                     endpoints.error().message()));
+    }
+
+    socket_ = std::move(*connect_result);
+
+    executor::commission(socket_.get_executor(), &ApiConnection::receive_loop, this);
+    executor::commission(socket_.get_executor(), &ApiConnection::heartbeat_loop, this);
 
     REQUIRE_SUCCESS(co_await send_message_hello());
     REQUIRE_SUCCESS(co_await send_message_connect());
@@ -165,14 +193,25 @@ AsyncResult<void> ApiConnection::send_message(const google::protobuf::Message &m
     if (packet.has_value())
     {
         std::println("Sending {}", message.GetTypeName());
-        const auto written = co_await socket_.async_write_some(asio::buffer(packet.value()));
-        if (written != packet->size())
+        auto executor = co_await this_coro::executor;
+        net::Timer timer{executor};
+        const auto watch_dog = executor::abort(socket_, timer);
+        timer.expires_after(std::chrono::milliseconds{500});
+
+        const auto written = co_await net::sendTo(socket_, timer, packet.value());
+        if (written.has_value() && written.value() != packet->size())
         {
             co_return make_unexpected_result(
                 ApiErrorCode::SendError,
                 std::format("Could not send message. Bytes written are different: expected={}, written={}",
                             packet->size(),
-                            written));
+                            *written));
+        }
+        else if (not written.has_value())
+        {
+            co_return make_unexpected_result(
+                ApiErrorCode::SendError,
+                std::format("Could not send message in time. Error: {}", written.error().message()));
         }
         co_return Result<void>{};
     }
@@ -207,15 +246,23 @@ AsyncResult<LogEntry> ApiConnection::receive_log()
     };
 }
 
-boost::asio::awaitable<void> ApiConnection::async_receive()
+boost::asio::awaitable<void> ApiConnection::receive_loop()
 {
-    namespace asio = boost::asio;
-    std::array<std::uint8_t, 4096> buffer{};
-    bool do_receive{true};
+    std::array<std::byte, 4096> buffer{};
+    auto executor = co_await this_coro::executor;
+    net::Timer timer{executor};
+    const auto watch_dog = executor::abort(socket_, timer);
 
+    bool do_receive{true};
     while (do_receive)
     {
-        const auto received_bytes = co_await socket_.async_receive(asio::buffer(buffer));
+        timer.expires_after(std::chrono::seconds{100}); // at least every 90secs. a message should be received
+        const auto received_bytes = co_await net::receiveFrom(socket_, timer, buffer);
+        if (not received_bytes.has_value())
+        {
+            std::println("Could not receive bytes. Error {}", received_bytes.error().message());
+            break;
+        }
         auto result = PlainTextProtocol{}
                           .decode_multiple<proto::SubscribeLogsResponse,
                                            proto::DeviceInfoResponse,
@@ -247,7 +294,7 @@ boost::asio::awaitable<void> ApiConnection::async_receive()
                                            proto::ListEntitiesTimeResponse,
                                            proto::ListEntitiesUpdateResponse,
                                            proto::ListEntitiesValveResponse>(
-                              std::span{buffer.begin(), received_bytes}, [this](auto &&message) {
+                              std::span{buffer.cbegin(), received_bytes.value()}, [this](auto &&message) {
                                   std::vector<boost::asio::any_completion_handler<void(MessageWrapper)>> handlers;
                                   {
                                       std::unique_lock l{handler_mtx_};
@@ -276,11 +323,6 @@ boost::asio::awaitable<void> ApiConnection::async_receive()
     std::println("RECEIVE ENDED!");
 }
 
-void ApiConnection::spawn_heartbeat()
-{
-    asio::co_spawn(strand_, std::bind(&ApiConnection::heartbeat_loop, this), asio::detached);
-}
-
 boost::asio::awaitable<void> ApiConnection::heartbeat_loop()
 {
     auto executor = co_await this_coro::executor;
@@ -296,6 +338,7 @@ boost::asio::awaitable<void> ApiConnection::heartbeat_loop()
         // otherwise the connection is dead.
         co_await receive_message<proto::PingResponse>(asio::use_awaitable);
     }
+    executor::stopAssetOf(executor).request_stop();
 }
 
 } // namespace cppesphomeapi

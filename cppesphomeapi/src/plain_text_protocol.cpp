@@ -7,9 +7,9 @@
 
 namespace cppesphomeapi
 {
-Result<std::vector<std::uint8_t>> PlainTextProtocol::serialize(const ::google::protobuf::Message &message)
+Result<std::vector<std::byte>> PlainTextProtocol::serialize(const ::google::protobuf::Message &message)
 {
-    constexpr std::uint8_t kPlainTextPreamble = 0x00;
+    constexpr std::byte kPlainTextPreamble = std::byte{0x00};
     auto &&msg_options = message.GetDescriptor()->options();
     if (not msg_options.HasExtension(proto::id))
     {
@@ -19,7 +19,7 @@ Result<std::vector<std::uint8_t>> PlainTextProtocol::serialize(const ::google::p
     }
 
     constexpr auto kMaxHeaderLen = 5;
-    std::vector<std::uint8_t> buffer;
+    std::vector<std::byte> buffer;
     buffer.resize(message.ByteSizeLong() + kMaxHeaderLen);
 
     buffer[0] = kPlainTextPreamble;
