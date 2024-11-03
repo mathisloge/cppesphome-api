@@ -1,5 +1,6 @@
 #include "entity_conversion.hpp"
 #include <cstdint>
+#include <ranges>
 
 namespace cppesphomeapi
 {
@@ -95,39 +96,12 @@ LightEntityInfo pb2entity_info(const proto::ListEntitiesLightResponse &light_res
     entity.effects.reserve(light_response.effects_size());
     std::ranges::copy(light_response.effects(), std::back_inserter(entity.effects));
 
-    constexpr auto kMapColorModes = [](int mode) -> ColorMode {
-        switch (proto::ColorMode{mode})
-        {
-        case proto::ColorMode::COLOR_MODE_UNKNOWN:
-            return ColorMode::Unknown;
-        case proto::ColorMode::COLOR_MODE_ON_OFF:
-            return ColorMode::OnOff;
-        case proto::ColorMode::COLOR_MODE_BRIGHTNESS:
-            return ColorMode::Brightness;
-        case proto::ColorMode::COLOR_MODE_WHITE:
-            return ColorMode::White;
-        case proto::ColorMode::COLOR_MODE_COLOR_TEMPERATURE:
-            return ColorMode::ColorTemperature;
-        case proto::ColorMode::COLOR_MODE_COLD_WARM_WHITE:
-            return ColorMode::ColdWarmWhite;
-        case proto::ColorMode::COLOR_MODE_RGB:
-            return ColorMode::Rgb;
-        case proto::ColorMode::COLOR_MODE_RGB_WHITE:
-            return ColorMode::RgbWhite;
-        case proto::ColorMode::COLOR_MODE_RGB_COLOR_TEMPERATURE:
-            return ColorMode::RgbColorTemperature;
-        case proto::ColorMode::COLOR_MODE_RGB_COLD_WARM_WHITE:
-            return ColorMode::RgbColdWarmWhite;
-        // protobuf won't use these as return param but handle them to get warnings if new flags are added.
-        case proto::ColorMode::ColorMode_INT_MIN_SENTINEL_DO_NOT_USE_:
-        case proto::ColorMode::ColorMode_INT_MAX_SENTINEL_DO_NOT_USE_:
-            break;
-        }
-        return ColorMode::Unknown;
-    };
     entity.supported_color_modes.reserve(light_response.supported_color_modes_size());
-    std::ranges::transform(
-        light_response.supported_color_modes(), std::back_inserter(entity.supported_color_modes), kMapColorModes);
+
+    std::ranges::copy(
+        std::views::transform(light_response.supported_color_modes(), [](int v) { return proto::ColorMode{v}; }) |
+            std::views::transform(pb2color_mode),
+        std::back_inserter(entity.supported_color_modes));
 
     return entity;
 }
@@ -180,4 +154,35 @@ EntityInfo pb2entity_info(const proto::ListEntitiesValveResponse &response)
     return pb2entity_info_base(response);
 }
 
+ColorMode pb2color_mode(proto::ColorMode color_mode)
+{
+    switch (color_mode)
+    {
+    case proto::ColorMode::COLOR_MODE_UNKNOWN:
+        return ColorMode::Unknown;
+    case proto::ColorMode::COLOR_MODE_ON_OFF:
+        return ColorMode::OnOff;
+    case proto::ColorMode::COLOR_MODE_BRIGHTNESS:
+        return ColorMode::Brightness;
+    case proto::ColorMode::COLOR_MODE_WHITE:
+        return ColorMode::White;
+    case proto::ColorMode::COLOR_MODE_COLOR_TEMPERATURE:
+        return ColorMode::ColorTemperature;
+    case proto::ColorMode::COLOR_MODE_COLD_WARM_WHITE:
+        return ColorMode::ColdWarmWhite;
+    case proto::ColorMode::COLOR_MODE_RGB:
+        return ColorMode::Rgb;
+    case proto::ColorMode::COLOR_MODE_RGB_WHITE:
+        return ColorMode::RgbWhite;
+    case proto::ColorMode::COLOR_MODE_RGB_COLOR_TEMPERATURE:
+        return ColorMode::RgbColorTemperature;
+    case proto::ColorMode::COLOR_MODE_RGB_COLD_WARM_WHITE:
+        return ColorMode::RgbColdWarmWhite;
+    // protobuf won't use these as return param but handle them to get warnings if new flags are added.
+    case proto::ColorMode::ColorMode_INT_MIN_SENTINEL_DO_NOT_USE_:
+    case proto::ColorMode::ColorMode_INT_MAX_SENTINEL_DO_NOT_USE_:
+        break;
+    }
+    return ColorMode::Unknown;
+}
 } // namespace cppesphomeapi

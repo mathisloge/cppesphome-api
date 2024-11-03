@@ -7,6 +7,7 @@
 #include "make_unexpected_result.hpp"
 #include "net.hpp"
 #include "plain_text_protocol.hpp"
+#include "state_conversion.hpp"
 
 namespace asio = boost::asio;
 namespace this_coro = asio::this_coro;
@@ -64,7 +65,7 @@ AsyncResult<void> ApiConnection::connect()
                                          std::format("Could not connect to host {}:{}. Failed with error: {}",
                                                      hostname_,
                                                      port_,
-                                                     endpoints.error().message()));
+                                                     connect_result->address().to_string()));
     }
     else
     {
@@ -255,13 +256,13 @@ AsyncResult<void> ApiConnection::subscribe_states()
     co_return co_await send_message(request);
 }
 
-AsyncResult<void> ApiConnection::receive_state()
+AsyncResult<EntityStateVariant> ApiConnection::receive_state()
 {
-    const auto message = co_await receive_message<proto::LightStateResponse>(asio::use_awaitable);
+    const auto message = co_await receive_any_message<proto::LightStateResponse>(asio::use_awaitable);
     REQUIRE_SUCCESS(message);
     auto &&value = message.value();
-    std::println("Light state: state={}, effect={}", value->state(), value->effect());
-    co_return Result<void>();
+
+    co_return std::visit([](auto &&msg) { return EntityStateVariant{pb2state(*msg)}; }, value);
 }
 
 boost::asio::awaitable<void> ApiConnection::receive_loop()

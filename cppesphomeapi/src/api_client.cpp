@@ -53,7 +53,7 @@ AsyncResult<void> ApiClient::subscribe_states()
     co_return co_await connection_->subscribe_states();
 }
 
-AsyncResult<void> ApiClient::async_receive_state()
+AsyncResult<EntityStateVariant> ApiClient::async_receive_state()
 {
     co_return co_await connection_->receive_state();
 }

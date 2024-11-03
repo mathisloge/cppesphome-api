@@ -27,4 +27,6 @@ EntityInfo pb2entity_info(const proto::ListEntitiesTextSensorResponse &response)
 EntityInfo pb2entity_info(const proto::ListEntitiesTimeResponse &response);
 EntityInfo pb2entity_info(const proto::ListEntitiesUpdateResponse &response);
 EntityInfo pb2entity_info(const proto::ListEntitiesValveResponse &response);
+
+ColorMode pb2color_mode(proto::ColorMode color_mode);
 } // namespace cppesphomeapi

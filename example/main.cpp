@@ -16,6 +16,14 @@ namespace this_coro = asio::this_coro;
 
 namespace
 {
+struct StatePrinter
+{
+    void operator()(const cppesphomeapi::LightState &state)
+    {
+        std::println("LightState[key={}, state={}, effect={}]", state.key, state.state, state.effect);
+    }
+};
+
 awaitable<void> client()
 {
     std::stop_source stop_source;
@@ -57,7 +65,11 @@ awaitable<void> client()
                 auto state_message = co_await api_client.async_receive_state();
                 if (state_message.has_value())
                 {
-                    std::println("ESPHOME_STATE: {}", "");
+                    std::visit(StatePrinter{}, state_message.value());
+                }
+                else
+                {
+                    std::println("Could not receive state message. Error={}", state_message.error().message);
                 }
             }
         },

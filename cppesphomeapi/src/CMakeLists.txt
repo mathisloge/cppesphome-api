@@ -6,6 +6,8 @@ target_sources(cppesphomeapi
         api_connection.cpp
         entity_conversion.cpp
         entity_conversion.hpp
+        state_conversion.cpp
+        state_conversion.hpp
         executor.hpp
         net.hpp
         net.cpp

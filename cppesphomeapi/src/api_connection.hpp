@@ -42,7 +42,7 @@ class ApiConnection
     AsyncResult<void> enable_logs(EspHomeLogLevel log_level, bool config_dump);
     AsyncResult<LogEntry> receive_log();
     AsyncResult<void> subscribe_states();
-    AsyncResult<void> receive_state();
+    AsyncResult<EntityStateVariant> receive_state();
 
     void cancel();
 
@@ -103,6 +103,27 @@ class ApiConnection
         (handle_message_impl<TMsgs>(visitor, wrapper) || ...);
     }
 
+    template <typename... TMsgs>
+    auto receive_any_message(auto &&comletion_token) -> AsyncResult<std::variant<std::shared_ptr<TMsgs>...>>
+    {
+        while (true)
+        {
+            const MessageWrapper message =
+                co_await async_receive_message(std::forward<decltype(comletion_token)>(comletion_token));
+
+            const bool accepted_msg = (message.holds_message<TMsgs>() || ...);
+            if (not accepted_msg)
+            {
+                continue;
+            }
+            std::variant<std::shared_ptr<TMsgs>...> result;
+            handle_messages<TMsgs...>([&result](auto &&msg) { result = std::forward<decltype(msg)>(msg); }, message);
+            co_return result;
+        }
+        co_return make_unexpected_result(ApiErrorCode::UnexpectedMessage,
+                                         "Could not receive any of the speciefied messages");
+    }
+
     template <typename TStopMsg, typename... TMsgs>
     auto receive_messages(auto &&comletion_token) -> AsyncResult<std::vector<std::variant<std::shared_ptr<TMsgs>...>>>
     {
@@ -112,20 +133,17 @@ class ApiConnection
         bool do_receive{true};
         while (do_receive)
         {
-            const MessageWrapper message =
-                co_await async_receive_message(std::forward<decltype(comletion_token)>(comletion_token));
-
-            const bool accepted_msg = message.holds_message<TStopMsg>() || (message.holds_message<TMsgs>() || ...);
-            if (not accepted_msg)
+            const auto any_message = co_await receive_any_message<TStopMsg, TMsgs...>(
+                std::forward<decltype(comletion_token)>(comletion_token));
+            if (not any_message)
             {
-                continue;
+                co_return std::unexpected{any_message.error()};
             }
-            handle_messages<TStopMsg, TMsgs...>(
-                detail::overloaded{
-                    [&do_receive](std::shared_ptr<TStopMsg> /*stop_msg*/) { do_receive = false; },
-                    [&messages](auto &&msg) { messages.emplace_back(std::forward<decltype(msg)>(msg)); },
-                },
-                message);
+            std::visit(detail::overloaded{
+                           [&do_receive](std::shared_ptr<TStopMsg> /*stop_msg*/) { do_receive = false; },
+                           [&messages](auto &&msg) { messages.emplace_back(std::forward<decltype(msg)>(msg)); },
+                       },
+                       any_message.value());
         }
         co_return messages;
     }
